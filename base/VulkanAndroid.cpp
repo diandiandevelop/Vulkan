@@ -153,6 +153,11 @@ namespace vks
 	namespace android
 	{
 		// Dynamically load Vulkan library and base function pointers
+		// 动态加载 Vulkan 库和基础函数指针
+		/** 
+		 * @brief 动态加载 Vulkan 库和基础函数指针
+		 * @return 成功返回 true，失败返回 false
+		 */
 		bool loadVulkanLibrary()
 		{
 			__android_log_print(ANDROID_LOG_INFO, "vulkanandroid", "Loading libvulkan.so...\n");
@@ -176,6 +181,11 @@ namespace vks
 		}
 
 		// Load instance based Vulkan function pointers
+		// 加载基于实例的 Vulkan 函数指针
+		/**
+		 * @brief 加载基于实例的 Vulkan 函数指针
+		 * @param instance Vulkan 实例句柄，用于获取函数指针
+		 */
 		void loadVulkanFunctions(VkInstance instance)
 		{
 			__android_log_print(ANDROID_LOG_INFO, "vulkanandroid", "Loading instance based function pointers...\n");
@@ -331,14 +341,21 @@ namespace vks
 			vkGetPhysicalDeviceImageFormatProperties = reinterpret_cast<PFN_vkGetPhysicalDeviceImageFormatProperties>(vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceImageFormatProperties"));
 		}
 
+		/**
+		 * @brief 释放 Vulkan 库
+		 */
 		void freeVulkanLibrary()
 		{
 			dlclose(libVulkan);
 		}
 
+		/**
+		 * @brief 获取设备配置信息（如屏幕密度）
+		 */
 		void getDeviceConfig()
 		{
 			// Screen density
+			// 屏幕密度
 			AConfiguration* config = AConfiguration_new();
 			AConfiguration_fromAssetManager(config, androidApp->activity->assetManager);
 			vks::android::screenDensity = AConfiguration_getDensity(config);
@@ -346,6 +363,11 @@ namespace vks
 		}
 
 		// Displays a native alert dialog using JNI
+		// 使用 JNI 显示原生警告对话框
+		/**
+		 * @brief 使用 JNI 显示原生警告对话框
+		 * @param message 要显示的消息字符串
+		 */
 		void showAlert(const char* message) {
 			JNIEnv* jni;
 			androidApp->activity->vm->AttachCurrentThread(&jni, NULL);

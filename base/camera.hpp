@@ -12,12 +12,18 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+/**
+ * @brief 基础相机类，提供观察和第一人称相机功能
+ */
 class Camera
 {
 private:
-	float fov;
-	float znear, zfar;
+	float fov;          // 视野角度（度）
+	float znear, zfar;  // 近裁剪面和远裁剪面距离
 
+	/**
+	 * @brief 更新视图矩阵
+	 */
 	void updateViewMatrix()
 	{
 		glm::mat4 currentMatrix = matrices.view;
@@ -51,46 +57,65 @@ private:
 		}
 	};
 public:
-	enum CameraType { lookat, firstperson };
-	CameraType type = CameraType::lookat;
+	enum CameraType { lookat, firstperson };  // 相机类型：观察模式、第一人称模式
+	CameraType type = CameraType::lookat;     // 当前相机类型
 
-	glm::vec3 rotation = glm::vec3();
-	glm::vec3 position = glm::vec3();
-	glm::vec4 viewPos = glm::vec4();
+	glm::vec3 rotation = glm::vec3();  // 旋转角度（欧拉角）
+	glm::vec3 position = glm::vec3();  // 位置
+	glm::vec4 viewPos = glm::vec4();   // 视图位置
 
-	float rotationSpeed = 1.0f;
-	float movementSpeed = 1.0f;
+	float rotationSpeed = 1.0f;   // 旋转速度
+	float movementSpeed = 1.0f;   // 移动速度
 
-	bool updated = true;
-	bool flipY = false;
+	bool updated = true;   // 是否已更新
+	bool flipY = false;     // 是否翻转 Y 轴
 
 	struct
 	{
-		glm::mat4 perspective;
-		glm::mat4 view;
+		glm::mat4 perspective;  // 透视投影矩阵
+		glm::mat4 view;         // 视图矩阵
 	} matrices;
 
 	struct
 	{
-		bool left = false;
-		bool right = false;
-		bool up = false;
-		bool down = false;
+		bool left = false;   // 左移键
+		bool right = false;  // 右移键
+		bool up = false;     // 上移键
+		bool down = false;   // 下移键
 	} keys;
 
+	/**
+	 * @brief 检查是否正在移动
+	 * @return 如果任何方向键被按下返回 true
+	 */
 	bool moving() const
 	{
 		return keys.left || keys.right || keys.up || keys.down;
 	}
 
+	/**
+	 * @brief 获取近裁剪面距离
+	 * @return 近裁剪面距离
+	 */
 	float getNearClip() const {
 		return znear;
 	}
 
+	/**
+	 * @brief 获取远裁剪面距离
+	 * @return 远裁剪面距离
+	 */
 	float getFarClip() const {
 		return zfar;
 	}
 
+	/**
+	 * @brief 设置透视投影
+	 * @param fov 视野角度（度）
+	 * @param aspect 宽高比
+	 * @param znear 近裁剪面距离
+	 * @param zfar 远裁剪面距离
+	 */
 	void setPerspective(float fov, float aspect, float znear, float zfar)
 	{
 		glm::mat4 currentMatrix = matrices.perspective;

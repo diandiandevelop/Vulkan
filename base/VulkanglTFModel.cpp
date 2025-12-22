@@ -26,165 +26,215 @@ uint32_t vkglTF::descriptorBindingFlags = vkglTF::DescriptorBindingFlags::ImageB
 
 /*
 	We use a custom image loading function with tinyglTF, so we can do custom stuff loading ktx textures
+	我们使用自定义的图像加载函数与 tinyglTF，以便可以自定义加载 ktx 纹理
 */
+/**
+ * @brief 自定义图像加载函数
+ * 用于处理 KTX 纹理的自定义加载逻辑
+ * @param image 图像指针
+ * @param imageIndex 图像索引
+ * @param error 错误信息指针
+ * @param warning 警告信息指针
+ * @param req_width 请求的宽度
+ * @param req_height 请求的高度
+ * @param bytes 图像数据
+ * @param size 数据大小
+ * @param userData 用户数据
+ * @return 成功返回 true
+ */
 bool loadImageDataFunc(tinygltf::Image* image, const int imageIndex, std::string* error, std::string* warning, int req_width, int req_height, const unsigned char* bytes, int size, void* userData)
 {
 	// KTX files will be handled by our own code
+	// KTX 文件将由我们自己的代码处理
 	if (image->uri.find_last_of(".") != std::string::npos) {
 		if (image->uri.substr(image->uri.find_last_of(".") + 1) == "ktx") {
-			return true;
+			return true;  // KTX 文件跳过默认加载
 		}
 	}
 
-	return tinygltf::LoadImageData(image, imageIndex, error, warning, req_width, req_height, bytes, size, userData);
+	return tinygltf::LoadImageData(image, imageIndex, error, warning, req_width, req_height, bytes, size, userData);  // 其他格式使用默认加载
 }
 
+/**
+ * @brief 空图像加载函数
+ * 用于不需要加载图像的示例
+ * @return 始终返回 true
+ */
 bool loadImageDataFuncEmpty(tinygltf::Image* image, const int imageIndex, std::string* error, std::string* warning, int req_width, int req_height, const unsigned char* bytes, int size, void* userData) 
 {
 	// This function will be used for samples that don't require images to be loaded
+	// 此函数用于不需要加载图像的示例
 	return true;
 }
 
 
 /*
 	glTF texture loading class
+	glTF 纹理加载类
 */
 
+/**
+ * @brief 更新纹理描述符
+ * 更新描述符中的采样器、图像视图和图像布局
+ */
 void vkglTF::Texture::updateDescriptor()
 {
-	descriptor.sampler = sampler;
-	descriptor.imageView = view;
-	descriptor.imageLayout = imageLayout;
+	descriptor.sampler = sampler;      // 设置采样器
+	descriptor.imageView = view;       // 设置图像视图
+	descriptor.imageLayout = imageLayout;  // 设置图像布局
 }
 
+/**
+ * @brief 销毁纹理资源
+ * 释放所有 Vulkan 资源（图像视图、图像、内存、采样器）
+ */
 void vkglTF::Texture::destroy()
 {
 	if (device)
 	{
-		vkDestroyImageView(device->logicalDevice, view, nullptr);
-		vkDestroyImage(device->logicalDevice, image, nullptr);
-		vkFreeMemory(device->logicalDevice, deviceMemory, nullptr);
-		vkDestroySampler(device->logicalDevice, sampler, nullptr);
+		vkDestroyImageView(device->logicalDevice, view, nullptr);        // 销毁图像视图
+		vkDestroyImage(device->logicalDevice, image, nullptr);            // 销毁图像
+		vkFreeMemory(device->logicalDevice, deviceMemory, nullptr);       // 释放内存
+		vkDestroySampler(device->logicalDevice, sampler, nullptr);         // 销毁采样器
 	}
 }
 
+/**
+ * @brief 从 glTF 图像加载纹理
+ * 支持 KTX 格式和普通图像格式（通过 STB_Image 加载）
+ * @param gltfimage glTF 图像引用
+ * @param path 文件路径
+ * @param device Vulkan 设备指针
+ * @param copyQueue 复制队列句柄
+ */
 void vkglTF::Texture::fromglTfImage(tinygltf::Image &gltfimage, std::string path, vks::VulkanDevice *device, VkQueue copyQueue)
 {
 	this->device = device;
 
-	bool isKtx = false;
+	bool isKtx = false;  // 是否为 KTX 格式
 	// Image points to an external ktx file
+	// 图像指向外部 ktx 文件
 	if (gltfimage.uri.find_last_of(".") != std::string::npos) {
 		if (gltfimage.uri.substr(gltfimage.uri.find_last_of(".") + 1) == "ktx") {
-			isKtx = true;
+			isKtx = true;  // 检测到 KTX 格式
 		}
 	}
 
-	VkFormat format;
+	VkFormat format;  // 图像格式
 
 	if (!isKtx) {
 		// Texture was loaded using STB_Image
+		// 纹理使用 STB_Image 加载
 
-		unsigned char* buffer = nullptr;
-		VkDeviceSize bufferSize = 0;
-		bool deleteBuffer = false;
+		unsigned char* buffer = nullptr;      // 图像数据缓冲区
+		VkDeviceSize bufferSize = 0;          // 缓冲区大小
+		bool deleteBuffer = false;            // 是否需要删除缓冲区
 		if (gltfimage.component == 3) {
 			// Most devices don't support RGB only on Vulkan so convert if necessary
 			// TODO: Check actual format support and transform only if required
-			bufferSize = gltfimage.width * gltfimage.height * 4;
+			// 大多数设备不支持仅 RGB，因此需要转换
+			// TODO: 检查实际格式支持，仅在需要时转换
+			bufferSize = gltfimage.width * gltfimage.height * 4;  // RGB 转 RGBA
 			buffer = new unsigned char[bufferSize];
 			unsigned char* rgba = buffer;
 			unsigned char* rgb = &gltfimage.image[0];
 			for (size_t i = 0; i < gltfimage.width * gltfimage.height; ++i) {
 				for (int32_t j = 0; j < 3; ++j) {
-					rgba[j] = rgb[j];
+					rgba[j] = rgb[j];  // 复制 RGB 分量
 				}
+				rgba[3] = 255;  // Alpha 设为 255
 				rgba += 4;
 				rgb += 3;
 			}
-			deleteBuffer = true;
+			deleteBuffer = true;  // 标记需要删除
 		}
 		else {
-			buffer = &gltfimage.image[0];
+			buffer = &gltfimage.image[0];      // 直接使用原始数据
 			bufferSize = gltfimage.image.size();
 		}
 		assert(buffer);
 
-		format = VK_FORMAT_R8G8B8A8_UNORM;
+		format = VK_FORMAT_R8G8B8A8_UNORM;  // RGBA 8位无符号归一化格式
 
-		width = gltfimage.width;
-		height = gltfimage.height;
-		mipLevels = static_cast<uint32_t>(floor(log2(std::max(width, height))) + 1.0);
+		width = gltfimage.width;   // 纹理宽度
+		height = gltfimage.height; // 纹理高度
+		mipLevels = static_cast<uint32_t>(floor(log2(std::max(width, height))) + 1.0);  // 计算 Mipmap 级别数
 
-		VkFormatProperties formatProperties;
+		VkFormatProperties formatProperties;  // 格式属性
 		vkGetPhysicalDeviceFormatProperties(device->physicalDevice, format, &formatProperties);
-		assert(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_SRC_BIT);
-		assert(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_DST_BIT);
+		assert(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_SRC_BIT);  // 确保支持作为 Blit 源
+		assert(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_DST_BIT);  // 确保支持作为 Blit 目标
 
-		VkBuffer stagingBuffer;
-		VkDeviceMemory stagingMemory;
+		VkBuffer stagingBuffer;      // 暂存缓冲区
+		VkDeviceMemory stagingMemory; // 暂存内存
 
+		// 创建暂存缓冲区用于上传图像数据
 		VkBufferCreateInfo bufferCreateInfo{
 			.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
 			.size = bufferSize,
-			.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT
+			.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT  // 传输源
 		};
 		VK_CHECK_RESULT(vkCreateBuffer(device->logicalDevice, &bufferCreateInfo, nullptr, &stagingBuffer));
-		VkMemoryRequirements memReqs{};
+		VkMemoryRequirements memReqs{};  // 内存需求
 		vkGetBufferMemoryRequirements(device->logicalDevice, stagingBuffer, &memReqs);
 		VkMemoryAllocateInfo memAllocInfo{
 			.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
 			.allocationSize = memReqs.size,
-			.memoryTypeIndex = device->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+			.memoryTypeIndex = device->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)  // 主机可见和一致
 		};
 		VK_CHECK_RESULT(vkAllocateMemory(device->logicalDevice, &memAllocInfo, nullptr, &stagingMemory));
 		VK_CHECK_RESULT(vkBindBufferMemory(device->logicalDevice, stagingBuffer, stagingMemory, 0));
 
+		// 将图像数据复制到暂存缓冲区
 		uint8_t* data{nullptr};
 		VK_CHECK_RESULT(vkMapMemory(device->logicalDevice, stagingMemory, 0, memReqs.size, 0, (void**)&data));
-		memcpy(data, buffer, bufferSize);
+		memcpy(data, buffer, bufferSize);  // 复制数据
 		vkUnmapMemory(device->logicalDevice, stagingMemory);
 
+		// 创建图像对象
 		VkImageCreateInfo imageCreateInfo{
 			.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-			.imageType = VK_IMAGE_TYPE_2D,
+			.imageType = VK_IMAGE_TYPE_2D,  // 2D 图像
 			.format = format,
 			.extent = { .width = width, .height = height, .depth = 1 },
-			.mipLevels = mipLevels,
-			.arrayLayers = 1,
-			.samples = VK_SAMPLE_COUNT_1_BIT,
-			.tiling = VK_IMAGE_TILING_OPTIMAL,
-			.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+			.mipLevels = mipLevels,        // Mipmap 级别数
+			.arrayLayers = 1,              // 数组层数
+			.samples = VK_SAMPLE_COUNT_1_BIT,  // 采样数
+			.tiling = VK_IMAGE_TILING_OPTIMAL,  // 最优平铺
+			.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,  // 传输目标和源，以及采样
 			.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,  // 初始布局：未定义
 		};
 		VK_CHECK_RESULT(vkCreateImage(device->logicalDevice, &imageCreateInfo, nullptr, &image));
 		vkGetImageMemoryRequirements(device->logicalDevice, image, &memReqs);
 		memAllocInfo.allocationSize = memReqs.size;
-		memAllocInfo.memoryTypeIndex = device->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		VK_CHECK_RESULT(vkAllocateMemory(device->logicalDevice, &memAllocInfo, nullptr, &deviceMemory));
-		VK_CHECK_RESULT(vkBindImageMemory(device->logicalDevice, image, deviceMemory, 0));
+		memAllocInfo.memoryTypeIndex = device->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);  // 设备本地内存
+		VK_CHECK_RESULT(vkAllocateMemory(device->logicalDevice, &memAllocInfo, nullptr, &deviceMemory));  // 分配设备内存
+		VK_CHECK_RESULT(vkBindImageMemory(device->logicalDevice, image, deviceMemory, 0));  // 绑定图像内存
 
-		VkCommandBuffer copyCmd = device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
-		VkImageSubresourceRange subresourceRange{ .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .levelCount = 1, .layerCount = 1 };
+		// 创建命令缓冲区并执行图像布局转换和数据复制
+		VkCommandBuffer copyCmd = device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);  // 创建主命令缓冲区
+		VkImageSubresourceRange subresourceRange{ .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .levelCount = 1, .layerCount = 1 };  // 子资源范围
 		{
+			// 将图像布局从 UNDEFINED 转换为 TRANSFER_DST_OPTIMAL，准备接收数据
 			VkImageMemoryBarrier imageMemoryBarrier{
 				.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-				.srcAccessMask = 0,
-				.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-				.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-				.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				.srcAccessMask = 0,  // 源访问掩码：无
+				.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,  // 目标访问掩码：传输写入
+				.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,  // 旧布局：未定义
+				.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,  // 新布局：传输目标最优
 				.image = image,
 				.subresourceRange = subresourceRange,
 			};
-			vkCmdPipelineBarrier(copyCmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
+			vkCmdPipelineBarrier(copyCmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);  // 管线屏障
 		}
+		// 设置缓冲区到图像的复制区域
 		VkBufferImageCopy bufferCopyRegion{
 			.imageSubresource = {
-				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-				.mipLevel = 0,
-				.baseArrayLayer = 0,
-				.layerCount = 1
+				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,  // 颜色方面
+				.mipLevel = 0,  // Mip 级别 0
+				.baseArrayLayer = 0,  // 基础数组层
+				.layerCount = 1  // 层数
 			},
 			.imageExtent = {
 				.width = width,
@@ -192,74 +242,83 @@ void vkglTF::Texture::fromglTfImage(tinygltf::Image &gltfimage, std::string path
 				.depth = 1
 			}
 		};
-		vkCmdCopyBufferToImage(copyCmd, stagingBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bufferCopyRegion);
+		vkCmdCopyBufferToImage(copyCmd, stagingBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bufferCopyRegion);  // 复制缓冲区到图像
 		{
+			// 将图像布局从 TRANSFER_DST_OPTIMAL 转换为 TRANSFER_SRC_OPTIMAL，准备生成 Mipmap
 			VkImageMemoryBarrier imageMemoryBarrier{
 				.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-				.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-				.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
-				.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-				.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,  // 源访问掩码：传输写入
+				.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,   // 目标访问掩码：传输读取
+				.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,  // 旧布局：传输目标最优
+				.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,  // 新布局：传输源最优
 				.image = image,
 				.subresourceRange = subresourceRange,
 			};
-			vkCmdPipelineBarrier(copyCmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
+			vkCmdPipelineBarrier(copyCmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);  // 管线屏障
 		}
-		device->flushCommandBuffer(copyCmd, copyQueue, true);
+		device->flushCommandBuffer(copyCmd, copyQueue, true);  // 刷新命令缓冲区
 
+		// 清理暂存缓冲区
 		vkDestroyBuffer(device->logicalDevice, stagingBuffer, nullptr);
 		vkFreeMemory(device->logicalDevice, stagingMemory, nullptr);
 
 		// Generate the mip chain (glTF uses jpg and png, so we need to create this manually)
-		VkCommandBuffer blitCmd = device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
-		for (uint32_t i = 1; i < mipLevels; i++) {
-			VkImageBlit imageBlit{};
+		// 生成 Mipmap 链（glTF 使用 jpg 和 png，因此需要手动创建）
+		VkCommandBuffer blitCmd = device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);  // 创建用于 Blit 的命令缓冲区
+		for (uint32_t i = 1; i < mipLevels; i++) {  // 为每个 Mip 级别生成
+			VkImageBlit imageBlit{};  // 图像 Blit 结构
+			// 源子资源（上一级 Mip）
 			imageBlit.srcSubresource = {
 				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-				.mipLevel = i - 1,
+				.mipLevel = i - 1,  // 上一级 Mip
 				.layerCount = 1,
 			};
+			// 源偏移（上一级 Mip 的尺寸）
 			imageBlit.srcOffsets[1] = {
-				.x = int32_t(width >> (i - 1)),
-				.y = int32_t(height >> (i - 1)),
+				.x = int32_t(width >> (i - 1)),  // 右移 (i-1) 位得到上一级宽度
+				.y = int32_t(height >> (i - 1)), // 右移 (i-1) 位得到上一级高度
 				.z = 1
 			};
+			// 目标子资源（当前 Mip 级别）
 			imageBlit.dstSubresource = {
 				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-				.mipLevel = i,
+				.mipLevel = i,  // 当前 Mip 级别
 				.layerCount = 1,
 			};
+			// 目标偏移（当前 Mip 的尺寸）
 			imageBlit.dstOffsets[1] = {
-				.x = int32_t(width >> i),
-				.y = int32_t(height >> i),
+				.x = int32_t(width >> i),  // 右移 i 位得到当前级宽度
+				.y = int32_t(height >> i), // 右移 i 位得到当前级高度
 				.z = 1
 			};
 
-			VkImageSubresourceRange mipSubRange{ .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .baseMipLevel = i, .levelCount = 1, .layerCount = 1 };
+			VkImageSubresourceRange mipSubRange{ .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .baseMipLevel = i, .levelCount = 1, .layerCount = 1 };  // 当前 Mip 的子资源范围
 			{
+				// 将当前 Mip 级别布局转换为 TRANSFER_DST_OPTIMAL
 				VkImageMemoryBarrier imageMemoryBarrier{
 					.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-					.srcAccessMask = 0,
-					.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-					.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-					.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+					.srcAccessMask = 0,  // 源访问掩码：无
+					.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,  // 目标访问掩码：传输写入
+					.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,  // 旧布局：未定义
+					.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,  // 新布局：传输目标最优
 					.image = image,
 					.subresourceRange = mipSubRange
 				};
-				vkCmdPipelineBarrier(blitCmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
+				vkCmdPipelineBarrier(blitCmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);  // 管线屏障
 			}
-			vkCmdBlitImage(blitCmd, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageBlit, VK_FILTER_LINEAR);
+			vkCmdBlitImage(blitCmd, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageBlit, VK_FILTER_LINEAR);  // 执行 Blit（线性过滤）
 			{
+				// 将当前 Mip 级别布局转换为 TRANSFER_SRC_OPTIMAL，作为下一级的源
 				VkImageMemoryBarrier imageMemoryBarrier{
 					.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-					.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-					.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
-					.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-					.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+					.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,  // 源访问掩码：传输写入
+					.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,   // 目标访问掩码：传输读取
+					.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,  // 旧布局：传输目标最优
+					.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,  // 新布局：传输源最优
 					.image = image,
 					.subresourceRange = mipSubRange
 				};
-				vkCmdPipelineBarrier(blitCmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
+				vkCmdPipelineBarrier(blitCmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);  // 管线屏障
 			}
 		}
 

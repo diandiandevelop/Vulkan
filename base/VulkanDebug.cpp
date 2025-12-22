@@ -16,9 +16,9 @@ namespace vks
 		bool logToFile{ false };
 		std::string logFileName{ "validation_output.txt" };
 
-		PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT;
-		PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT;
-		VkDebugUtilsMessengerEXT debugUtilsMessenger;
+		PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT;      // 创建调试消息信使的函数指针
+		PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT;    // 销毁调试消息信使的函数指针
+		VkDebugUtilsMessengerEXT debugUtilsMessenger;                           // 调试消息信使句柄
 
 		VKAPI_ATTR VkBool32 VKAPI_CALL debugUtilsMessageCallback(
 			VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -27,6 +27,7 @@ namespace vks
 			void* pUserData)
 		{
 			// Select prefix depending on flags passed to the callback
+			// 根据传递给回调的标志选择前缀
 			std::string prefix;
 
 			if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) {
@@ -64,6 +65,7 @@ namespace vks
 
 
 			// Display message to default output (console/logcat)
+			// 将消息显示到默认输出（控制台/logcat）
 			std::stringstream debugMessage;
 			if (pCallbackData->pMessageIdName) {
 				debugMessage << prefix << "[" << pCallbackData->messageIdNumber << "][" << pCallbackData->pMessageIdName << "] : " << pCallbackData->pMessage;
@@ -94,6 +96,9 @@ namespace vks
 			// The return value of this callback controls whether the Vulkan call that caused the validation message will be aborted or not
 			// We return VK_FALSE as we DON'T want Vulkan calls that cause a validation message to abort
 			// If you instead want to have calls abort, pass in VK_TRUE and the function will return VK_ERROR_VALIDATION_FAILED_EXT
+			// 此回调的返回值控制是否中止导致验证消息的 Vulkan 调用
+			// 我们返回 VK_FALSE，因为我们不希望导致验证消息的 Vulkan 调用被中止
+			// 如果您希望调用被中止，传递 VK_TRUE，函数将返回 VK_ERROR_VALIDATION_FAILED_EXT
 			return VK_FALSE;
 		}
 
@@ -139,9 +144,9 @@ namespace vks
 
 	namespace debugutils
 	{
-		PFN_vkCmdBeginDebugUtilsLabelEXT vkCmdBeginDebugUtilsLabelEXT{ nullptr };
-		PFN_vkCmdEndDebugUtilsLabelEXT vkCmdEndDebugUtilsLabelEXT{ nullptr };
-		PFN_vkCmdInsertDebugUtilsLabelEXT vkCmdInsertDebugUtilsLabelEXT{ nullptr };
+		PFN_vkCmdBeginDebugUtilsLabelEXT vkCmdBeginDebugUtilsLabelEXT{ nullptr };      // 开始调试标签的函数指针
+		PFN_vkCmdEndDebugUtilsLabelEXT vkCmdEndDebugUtilsLabelEXT{ nullptr };            // 结束调试标签的函数指针
+		PFN_vkCmdInsertDebugUtilsLabelEXT vkCmdInsertDebugUtilsLabelEXT{ nullptr };      // 插入调试标签的函数指针
 
 		void setup(VkInstance instance)
 		{

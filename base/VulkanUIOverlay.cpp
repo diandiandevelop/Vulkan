@@ -11,9 +11,14 @@
 
 namespace vks 
 {
+	/**
+	 * @brief UIOverlay 构造函数
+	 * 初始化 ImGui 上下文并设置样式
+	 */
 	UIOverlay::UIOverlay()
 	{
 #if defined(__ANDROID__)		
+		// Android 平台根据屏幕密度设置缩放因子
 		if (vks::android::screenDensity >= ACONFIGURATION_DENSITY_XXHIGH) {
 			scale = 3.5f;
 		}
@@ -25,8 +30,10 @@ namespace vks
 		};
 #endif
 		// Init ImGui
+		// 初始化 ImGui 上下文
 		ImGui::CreateContext();
 		// Color scheme
+		// 设置颜色方案（红色主题）
 		ImGuiStyle& style = ImGui::GetStyle();
 		style.Colors[ImGuiCol_TitleBg] = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
 		style.Colors[ImGuiCol_TitleBgActive] = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
@@ -45,10 +52,15 @@ namespace vks
 		style.Colors[ImGuiCol_ButtonHovered] = ImVec4(1.0f, 0.0f, 0.0f, 0.6f);
 		style.Colors[ImGuiCol_ButtonActive] = ImVec4(1.0f, 0.0f, 0.0f, 0.8f);
 		// Dimensions
+		// 设置全局字体缩放
 		ImGuiIO& io = ImGui::GetIO();
 		io.FontGlobalScale = scale;
 	}
 
+	/**
+	 * @brief UIOverlay 析构函数
+	 * 销毁 ImGui 上下文
+	 */
 	UIOverlay::~UIOverlay()	{
 		if (ImGui::GetCurrentContext()) {
 			ImGui::DestroyContext();
@@ -56,6 +68,11 @@ namespace vks
 	}
 
 	/** Prepare all vulkan resources required to render the UI overlay */
+	/** 准备渲染 UI 叠加层所需的所有 Vulkan 资源 */
+	/**
+	 * @brief 准备 UI 渲染资源
+	 * 创建字体纹理、描述符池、描述符集布局等
+	 */
 	void UIOverlay::prepareResources()
 	{
 		assert(maxConcurrentFrames > 0);
@@ -63,8 +80,9 @@ namespace vks
 		ImGuiIO& io = ImGui::GetIO();
 
 		// Create font texture
-		unsigned char* fontData;
-		int texWidth, texHeight;
+		// 创建字体纹理
+		unsigned char* fontData;  // 字体数据指针
+		int texWidth, texHeight;  // 纹理宽度和高度
 #if defined(__ANDROID__)
 		float scale = (float)vks::android::screenDensity / (float)ACONFIGURATION_DENSITY_MEDIUM;
 		AAsset* asset = AAssetManager_open(androidApp->activity->assetManager, "Roboto-Medium.ttf", AASSET_MODE_STREAMING);
@@ -82,13 +100,15 @@ namespace vks
 		io.Fonts->AddFontFromFileTTF(filename.c_str(), 16.0f * scale);
 #endif
 		io.Fonts->GetTexDataAsRGBA32(&fontData, &texWidth, &texHeight);
-		VkDeviceSize uploadSize = texWidth*texHeight * 4 * sizeof(char);
+		VkDeviceSize uploadSize = texWidth*texHeight * 4 * sizeof(char);  // 上传大小（RGBA32，每像素4字节）
 
 		// Set ImGui style scale factor to handle retina and other HiDPI displays (same as font scaling above)
+		// 设置 ImGui 样式缩放因子以处理 Retina 和其他高 DPI 显示器（与上面的字体缩放相同）
 		ImGuiStyle& style = ImGui::GetStyle();
 		style.ScaleAllSizes(scale);
 
 		// Create target image for copy
+		// 创建用于复制的目标图像
 		VkImageCreateInfo imageInfo{
 			.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
 			.imageType = VK_IMAGE_TYPE_2D,
@@ -124,14 +144,17 @@ namespace vks
 		VK_CHECK_RESULT(vkCreateImageView(device->logicalDevice, &viewInfo, nullptr, &fontView));
 
 		// Staging buffers for font data upload
+		// 用于字体数据上传的暂存缓冲区
 		vks::Buffer stagingBuffer;
 		VK_CHECK_RESULT(device->createBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer, uploadSize));
 		stagingBuffer.map();
 		memcpy(stagingBuffer.mapped, fontData, uploadSize);
 
 		// Copy buffer data to font image
+		// 将缓冲区数据复制到字体图像
 		VkCommandBuffer copyCmd = device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
 		// Prepare for transfer
+		// 准备传输
 		vks::tools::setImageLayout(
 			copyCmd,
 			fontImage,

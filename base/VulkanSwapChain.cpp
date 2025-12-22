@@ -10,8 +10,14 @@
 
 #include "VulkanSwapChain.h"
 
-/** @brief Creates the platform specific surface abstraction of the native platform window used for presentation */	
+/** @brief Creates the platform specific surface abstraction of the native platform window used for presentation */
+/** @brief 创建用于呈现的本地平台窗口的平台特定表面抽象 */
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
+/**
+ * @brief 初始化 Windows 平台表面
+ * @param platformHandle 平台句柄（HINSTANCE）
+ * @param platformWindow 平台窗口（HWND）
+ */
 void VulkanSwapChain::initSurface(void* platformHandle, void* platformWindow)
 #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
 void VulkanSwapChain::initSurface(ANativeWindow* window)
@@ -34,6 +40,7 @@ void VulkanSwapChain::initSurface(screen_context_t screen_context, screen_window
 	VkResult err = VK_SUCCESS;
 
 	// Create the os-specific surface
+	// 创建特定于操作系统的表面
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
 	VkWin32SurfaceCreateInfoKHR surfaceCreateInfo{};
 	surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;

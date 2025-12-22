@@ -21,89 +21,100 @@ extern CAMetalLayer* layer;
 #endif
 #endif
 
-std::vector<const char*> VulkanExampleBase::args;
+std::vector<const char*> VulkanExampleBase::args;  // 静态成员：命令行参数列表
 
+/**
+ * @brief 创建 Vulkan 实例
+ * 根据平台启用相应的表面扩展，并创建 Vulkan 实例
+ * @return 创建结果（VK_SUCCESS 表示成功）
+ */
 VkResult VulkanExampleBase::createInstance()
 {
-	std::vector<const char*> instanceExtensions = { VK_KHR_SURFACE_EXTENSION_NAME };
+	std::vector<const char*> instanceExtensions = { VK_KHR_SURFACE_EXTENSION_NAME };  // 基础表面扩展
 
 	// Enable surface extensions depending on os
+	// 根据操作系统启用相应的表面扩展
 #if defined(_WIN32)
-	instanceExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+	instanceExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);  // Windows 表面扩展
 #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
-	instanceExtensions.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
+	instanceExtensions.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);  // Android 表面扩展
 #elif defined(_DIRECT2DISPLAY)
-	instanceExtensions.push_back(VK_KHR_DISPLAY_EXTENSION_NAME);
+	instanceExtensions.push_back(VK_KHR_DISPLAY_EXTENSION_NAME);  // Direct2Display 扩展
 #elif defined(VK_USE_PLATFORM_DIRECTFB_EXT)
-	instanceExtensions.push_back(VK_EXT_DIRECTFB_SURFACE_EXTENSION_NAME);
+	instanceExtensions.push_back(VK_EXT_DIRECTFB_SURFACE_EXTENSION_NAME);  // DirectFB 表面扩展
 #elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
-	instanceExtensions.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
+	instanceExtensions.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);  // Wayland 表面扩展
 #elif defined(VK_USE_PLATFORM_XCB_KHR)
-	instanceExtensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
+	instanceExtensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);  // XCB 表面扩展
 #elif defined(VK_USE_PLATFORM_IOS_MVK)
-	instanceExtensions.push_back(VK_MVK_IOS_SURFACE_EXTENSION_NAME);
+	instanceExtensions.push_back(VK_MVK_IOS_SURFACE_EXTENSION_NAME);  // iOS 表面扩展
 #elif defined(VK_USE_PLATFORM_MACOS_MVK)
-	instanceExtensions.push_back(VK_MVK_MACOS_SURFACE_EXTENSION_NAME);
+	instanceExtensions.push_back(VK_MVK_MACOS_SURFACE_EXTENSION_NAME);  // macOS 表面扩展
 #elif defined(VK_USE_PLATFORM_METAL_EXT)
-	instanceExtensions.push_back(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
+	instanceExtensions.push_back(VK_EXT_METAL_SURFACE_EXTENSION_NAME);  // Metal 表面扩展
 #elif defined(VK_USE_PLATFORM_HEADLESS_EXT)
-	instanceExtensions.push_back(VK_EXT_HEADLESS_SURFACE_EXTENSION_NAME);
+	instanceExtensions.push_back(VK_EXT_HEADLESS_SURFACE_EXTENSION_NAME);  // 无头表面扩展
 #elif defined(VK_USE_PLATFORM_SCREEN_QNX)
-	instanceExtensions.push_back(VK_QNX_SCREEN_SURFACE_EXTENSION_NAME);
+	instanceExtensions.push_back(VK_QNX_SCREEN_SURFACE_EXTENSION_NAME);  // QNX 屏幕表面扩展
 #endif
 
 	// Get extensions supported by the instance and store for later use
-	uint32_t extCount = 0;
-	vkEnumerateInstanceExtensionProperties(nullptr, &extCount, nullptr);
-	if (extCount > 0)
+	// 获取实例支持的扩展并存储以供后续使用
+	uint32_t extCount = 0;  // 扩展数量
+	vkEnumerateInstanceExtensionProperties(nullptr, &extCount, nullptr);  // 获取实例扩展数量（第一次调用，仅获取数量）
+	if (extCount > 0)  // 如果有扩展
 	{
-		std::vector<VkExtensionProperties> extensions(extCount);
-		if (vkEnumerateInstanceExtensionProperties(nullptr, &extCount, &extensions.front()) == VK_SUCCESS)
+		std::vector<VkExtensionProperties> extensions(extCount);  // 创建扩展属性向量
+		if (vkEnumerateInstanceExtensionProperties(nullptr, &extCount, &extensions.front()) == VK_SUCCESS)  // 获取所有实例扩展属性（第二次调用，获取属性）
 		{
-			for (VkExtensionProperties& extension : extensions)
+			for (VkExtensionProperties& extension : extensions)  // 遍历所有扩展
 			{
-				supportedInstanceExtensions.push_back(extension.extensionName);
+				supportedInstanceExtensions.push_back(extension.extensionName);  // 存储支持的扩展名称
 			}
 		}
 	}
 
 #if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK) || defined(VK_USE_PLATFORM_METAL_EXT))
 	// SRS - When running on iOS/macOS with MoltenVK, enable VK_KHR_get_physical_device_properties2 if not already enabled by the example (required by VK_KHR_portability_subset)
-	if (std::find(enabledInstanceExtensions.begin(), enabledInstanceExtensions.end(), VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME) == enabledInstanceExtensions.end())
+	// SRS - 在 iOS/macOS 上使用 MoltenVK 运行时，如果示例尚未启用 VK_KHR_get_physical_device_properties2，则启用它（VK_KHR_portability_subset 需要）
+	if (std::find(enabledInstanceExtensions.begin(), enabledInstanceExtensions.end(), VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME) == enabledInstanceExtensions.end())  // 检查是否已启用该扩展
 	{
-		enabledInstanceExtensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+		enabledInstanceExtensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);  // 添加物理设备属性 2 扩展
 	}
 #endif
 
 	// Enabled requested instance extensions
-	if (!enabledInstanceExtensions.empty())
+	// 启用请求的实例扩展
+	if (!enabledInstanceExtensions.empty())  // 如果有启用的实例扩展
 	{
-		for (const char * enabledExtension : enabledInstanceExtensions)
+		for (const char * enabledExtension : enabledInstanceExtensions)  // 遍历所有启用的扩展
 		{
 			// Output message if requested extension is not available
-			if (std::find(supportedInstanceExtensions.begin(), supportedInstanceExtensions.end(), enabledExtension) == supportedInstanceExtensions.end())
+			// 如果请求的扩展不可用，输出消息
+			if (std::find(supportedInstanceExtensions.begin(), supportedInstanceExtensions.end(), enabledExtension) == supportedInstanceExtensions.end())  // 检查扩展是否在支持的扩展列表中
 			{
-				std::cerr << "Enabled instance extension \"" << enabledExtension << "\" is not present at instance level\n";
+				std::cerr << "Enabled instance extension \"" << enabledExtension << "\" is not present at instance level\n";  // 输出警告信息
 			}
-			instanceExtensions.push_back(enabledExtension);
+			instanceExtensions.push_back(enabledExtension);  // 添加到实例扩展列表
 		}
 	}
 
 	// Shaders generated by Slang require a certain SPIR-V environment that can't be satisfied by Vulkan 1.0, so we need to expliclity up that to at least 1.1 and enable some required extensions
-	if (shaderDir == "slang") {
-		if (apiVersion < VK_API_VERSION_1_1) {
-			apiVersion = VK_API_VERSION_1_1;
+	// Slang 生成的着色器需要特定的 SPIR-V 环境，Vulkan 1.0 无法满足，因此需要明确升级到至少 1.1 并启用一些必需的扩展
+	if (shaderDir == "slang") {  // 如果使用 Slang 着色器
+		if (apiVersion < VK_API_VERSION_1_1) {  // 如果 API 版本低于 1.1
+			apiVersion = VK_API_VERSION_1_1;  // 升级到 Vulkan 1.1
 		}
-		enabledDeviceExtensions.push_back(VK_KHR_SPIRV_1_4_EXTENSION_NAME);
-		enabledDeviceExtensions.push_back(VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME);
-		enabledDeviceExtensions.push_back(VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME);
+		enabledDeviceExtensions.push_back(VK_KHR_SPIRV_1_4_EXTENSION_NAME);              // SPIR-V 1.4 扩展（必需）
+		enabledDeviceExtensions.push_back(VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME);  // 着色器浮点控制扩展（必需）
+		enabledDeviceExtensions.push_back(VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME);  // 着色器绘制参数扩展（必需）
 	}
 
 	VkApplicationInfo appInfo{
 		.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-		.pApplicationName = name.c_str(),
-		.pEngineName = name.c_str(),
-		.apiVersion = apiVersion
+		.pApplicationName = name.c_str(),  // 应用程序名称
+		.pEngineName = name.c_str(),       // 引擎名称
+		.apiVersion = apiVersion            // Vulkan API 版本
 	};
 
 	VkInstanceCreateInfo instanceCreateInfo{
@@ -111,336 +122,402 @@ VkResult VulkanExampleBase::createInstance()
 		.pApplicationInfo = &appInfo
 	};
 
-	VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCI{};
-	if (settings.validation) {
-		vks::debug::setupDebugingMessengerCreateInfo(debugUtilsMessengerCI);
-		debugUtilsMessengerCI.pNext = instanceCreateInfo.pNext;
-		instanceCreateInfo.pNext = &debugUtilsMessengerCI;
+	VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCI{};  // 调试工具信使创建信息
+	if (settings.validation) {  // 如果启用验证
+		vks::debug::setupDebugingMessengerCreateInfo(debugUtilsMessengerCI);  // 设置调试信使创建信息
+		debugUtilsMessengerCI.pNext = instanceCreateInfo.pNext;  // 保存原有的 pNext 链
+		instanceCreateInfo.pNext = &debugUtilsMessengerCI;  // 链接到实例创建信息链
 	}
 
 #if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK) || defined(VK_USE_PLATFORM_METAL_EXT)) && defined(VK_KHR_portability_enumeration)
 	// SRS - When running on iOS/macOS with MoltenVK and VK_KHR_portability_enumeration is defined and supported by the instance, enable the extension and the flag
-	if (std::find(supportedInstanceExtensions.begin(), supportedInstanceExtensions.end(), VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME) != supportedInstanceExtensions.end())
+	// SRS - 在 iOS/macOS 上使用 MoltenVK 运行时，如果定义了 VK_KHR_portability_enumeration 且实例支持，则启用扩展和标志
+	if (std::find(supportedInstanceExtensions.begin(), supportedInstanceExtensions.end(), VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME) != supportedInstanceExtensions.end())  // 检查是否支持可移植性枚举扩展
 	{
-		instanceExtensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-		instanceCreateInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+		instanceExtensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);  // 添加可移植性枚举扩展
+		instanceCreateInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;  // 设置可移植性枚举标志
 	}
 #endif
 
 	// Enable the debug utils extension if available (e.g. when debugging tools are present)
-	if (settings.validation || std::find(supportedInstanceExtensions.begin(), supportedInstanceExtensions.end(), VK_EXT_DEBUG_UTILS_EXTENSION_NAME) != supportedInstanceExtensions.end()) {
-		instanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+	// 如果可用，启用调试工具扩展（例如，当存在调试工具时）
+	if (settings.validation || std::find(supportedInstanceExtensions.begin(), supportedInstanceExtensions.end(), VK_EXT_DEBUG_UTILS_EXTENSION_NAME) != supportedInstanceExtensions.end()) {  // 如果启用验证或支持调试工具扩展
+		instanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);  // 添加调试工具扩展
 	}
 
-	if (!instanceExtensions.empty()) {
-		instanceCreateInfo.enabledExtensionCount = (uint32_t)instanceExtensions.size();
-		instanceCreateInfo.ppEnabledExtensionNames = instanceExtensions.data();
+	if (!instanceExtensions.empty()) {  // 如果有实例扩展
+		instanceCreateInfo.enabledExtensionCount = (uint32_t)instanceExtensions.size();  // 设置启用的扩展数量
+		instanceCreateInfo.ppEnabledExtensionNames = instanceExtensions.data();  // 设置启用的扩展名称数组
 	}
 
 	// The VK_LAYER_KHRONOS_validation contains all current validation functionality.
 	// Note that on Android this layer requires at least NDK r20
-	const char* validationLayerName = "VK_LAYER_KHRONOS_validation";
-	if (settings.validation) {
+	// VK_LAYER_KHRONOS_validation 包含所有当前的验证功能
+	// 注意：在 Android 上，此层至少需要 NDK r20
+	const char* validationLayerName = "VK_LAYER_KHRONOS_validation";  // 验证层名称
+	if (settings.validation) {  // 如果启用验证
 		// Check if this layer is available at instance level
-		uint32_t instanceLayerCount;
-		vkEnumerateInstanceLayerProperties(&instanceLayerCount, nullptr);
-		std::vector<VkLayerProperties> instanceLayerProperties(instanceLayerCount);
-		vkEnumerateInstanceLayerProperties(&instanceLayerCount, instanceLayerProperties.data());
-		bool validationLayerPresent = false;
-		for (VkLayerProperties& layer : instanceLayerProperties) {
-			if (strcmp(layer.layerName, validationLayerName) == 0) {
-				validationLayerPresent = true;
-				break;
+		// 检查此层在实例级别是否可用
+		uint32_t instanceLayerCount;  // 实例层数量
+		vkEnumerateInstanceLayerProperties(&instanceLayerCount, nullptr);  // 获取实例层数量
+		std::vector<VkLayerProperties> instanceLayerProperties(instanceLayerCount);  // 创建层属性向量
+		vkEnumerateInstanceLayerProperties(&instanceLayerCount, instanceLayerProperties.data());  // 获取所有实例层属性
+		bool validationLayerPresent = false;  // 验证层是否存在标志
+		for (VkLayerProperties& layer : instanceLayerProperties) {  // 遍历所有层
+			if (strcmp(layer.layerName, validationLayerName) == 0) {  // 如果找到验证层
+				validationLayerPresent = true;  // 设置存在标志
+				break;  // 跳出循环
 			}
 		}
-		if (validationLayerPresent) {
-			instanceCreateInfo.ppEnabledLayerNames = &validationLayerName;
-			instanceCreateInfo.enabledLayerCount = 1;
-		} else {
-			std::cerr << "Validation layer VK_LAYER_KHRONOS_validation not present, validation is disabled";
+		if (validationLayerPresent) {  // 如果验证层存在
+			instanceCreateInfo.ppEnabledLayerNames = &validationLayerName;  // 启用验证层
+			instanceCreateInfo.enabledLayerCount = 1;  // 设置启用的层数量
+		} else {  // 如果验证层不存在
+			std::cerr << "Validation layer VK_LAYER_KHRONOS_validation not present, validation is disabled";  // 输出警告信息
 		}
 	}
 
 	// If layer settings are defined, then activate the sample's required layer settings during instance creation.
 	// Layer settings are typically used to activate specific features of a layer, such as the Validation Layer's
 	// printf feature, or to configure specific capabilities of drivers such as MoltenVK on macOS and/or iOS.
-	VkLayerSettingsCreateInfoEXT layerSettingsCreateInfo{ .sType = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT };
-	if (enabledLayerSettings.size() > 0) {
-		layerSettingsCreateInfo.settingCount = static_cast<uint32_t>(enabledLayerSettings.size());
-		layerSettingsCreateInfo.pSettings = enabledLayerSettings.data();
-		layerSettingsCreateInfo.pNext = instanceCreateInfo.pNext;
-		instanceCreateInfo.pNext = &layerSettingsCreateInfo;
+	// 如果定义了层设置，则在实例创建期间激活示例所需的层设置
+	// 层设置通常用于激活层的特定功能，例如验证层的 printf 功能，或配置驱动程序的特定功能，例如 macOS 和/或 iOS 上的 MoltenVK
+	VkLayerSettingsCreateInfoEXT layerSettingsCreateInfo{ .sType = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT };  // 层设置创建信息
+	if (enabledLayerSettings.size() > 0) {  // 如果有启用的层设置
+		layerSettingsCreateInfo.settingCount = static_cast<uint32_t>(enabledLayerSettings.size());  // 设置数量
+		layerSettingsCreateInfo.pSettings = enabledLayerSettings.data();  // 设置数组
+		layerSettingsCreateInfo.pNext = instanceCreateInfo.pNext;  // 保存原有的 pNext 链
+		instanceCreateInfo.pNext = &layerSettingsCreateInfo;  // 链接层设置到实例创建信息链
 	}
 
-	VkResult result = vkCreateInstance(&instanceCreateInfo, nullptr, &instance);
+	VkResult result = vkCreateInstance(&instanceCreateInfo, nullptr, &instance);  // 创建 Vulkan 实例
 
 	// If the debug utils extension is present we set up debug functions, so samples can label objects for debugging
-	if (std::find(supportedInstanceExtensions.begin(), supportedInstanceExtensions.end(), VK_EXT_DEBUG_UTILS_EXTENSION_NAME) != supportedInstanceExtensions.end()) {
-		vks::debugutils::setup(instance);
+	// 如果存在调试工具扩展，我们设置调试函数，以便示例可以为对象添加标签用于调试
+	if (std::find(supportedInstanceExtensions.begin(), supportedInstanceExtensions.end(), VK_EXT_DEBUG_UTILS_EXTENSION_NAME) != supportedInstanceExtensions.end()) {  // 检查是否支持调试工具扩展
+		vks::debugutils::setup(instance);  // 设置调试工具（加载函数指针）
 	}
 
 	return result;
 }
 
+/**
+ * @brief 获取窗口标题
+ * @return 窗口标题字符串（包含设备名称和 FPS）
+ */
 std::string VulkanExampleBase::getWindowTitle() const
 {
-	std::string windowTitle{ title + " - " + deviceProperties.deviceName };
+	std::string windowTitle{ title + " - " + deviceProperties.deviceName };  // 标题 + 设备名称
 	if (!settings.overlay) {
-		windowTitle += " - " + std::to_string(frameCounter) + " fps";
+		windowTitle += " - " + std::to_string(frameCounter) + " fps";  // 如果不显示 UI，添加 FPS
 	}
 	return windowTitle;
 }
 
+/**
+ * @brief 创建命令缓冲区
+ * 从命令池分配主命令缓冲区
+ */
 void VulkanExampleBase::createCommandBuffers()
 {
 	VkCommandBufferAllocateInfo cmdBufAllocateInfo{
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-		.commandPool = cmdPool,
-		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-		.commandBufferCount = static_cast<uint32_t>(drawCmdBuffers.size()),
+		.commandPool = cmdPool,  // 命令池
+		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,  // 主命令缓冲区
+		.commandBufferCount = static_cast<uint32_t>(drawCmdBuffers.size()),  // 命令缓冲区数量
 	};
 	VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, drawCmdBuffers.data()));
 }
 
+/**
+ * @brief 销毁命令缓冲区
+ * 释放命令缓冲区回命令池
+ */
 void VulkanExampleBase::destroyCommandBuffers()
 {
 	vkFreeCommandBuffers(device, cmdPool, static_cast<uint32_t>(drawCmdBuffers.size()), drawCmdBuffers.data());
 }
 
+/**
+ * @brief 获取着色器路径
+ * @return 着色器基础路径 + 着色器目录 + "/"
+ */
 std::string VulkanExampleBase::getShadersPath() const
 {
 	return getShaderBasePath() + shaderDir + "/";
 }
 
+/**
+ * @brief 创建管线缓存
+ * 用于加速管线创建
+ */
 void VulkanExampleBase::createPipelineCache()
 {
 	VkPipelineCacheCreateInfo pipelineCacheCreateInfo { .sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO };
 	VK_CHECK_RESULT(vkCreatePipelineCache(device, &pipelineCacheCreateInfo, nullptr, &pipelineCache));
 }
 
+/**
+ * @brief 准备示例
+ * 初始化所有 Vulkan 资源，包括表面、命令池、交换链、命令缓冲区、同步原语、深度模板、渲染通道、管线缓存、帧缓冲区和 UI
+ */
 void VulkanExampleBase::prepare()
 {
-	createSurface();
-	createCommandPool();
-	createSwapChain();
-	createCommandBuffers();
-	createSynchronizationPrimitives();
-	setupDepthStencil();
-	setupRenderPass();
-	createPipelineCache();
-	setupFrameBuffer();
-	settings.overlay = settings.overlay && (!benchmark.active);
+	createSurface();                    // 创建表面
+	createCommandPool();                 // 创建命令池
+	createSwapChain();                   // 创建交换链
+	createCommandBuffers();              // 创建命令缓冲区
+	createSynchronizationPrimitives();   // 创建同步原语
+	setupDepthStencil();                 // 设置深度模板
+	setupRenderPass();                   // 设置渲染通道
+	createPipelineCache();               // 创建管线缓存
+	setupFrameBuffer();                  // 设置帧缓冲区
+	settings.overlay = settings.overlay && (!benchmark.active);  // 如果基准测试激活，禁用 UI
 	if (settings.overlay) {
-		ui.maxConcurrentFrames = maxConcurrentFrames;
-		ui.device = vulkanDevice;
-		ui.queue = queue;
+		ui.maxConcurrentFrames = maxConcurrentFrames;  // UI 最大并发帧数
+		ui.device = vulkanDevice;                       // UI 设备
+		ui.queue = queue;                               // UI 队列
 		ui.shaders = {
-			loadShader(getShadersPath() + "base/uioverlay.vert.spv", VK_SHADER_STAGE_VERTEX_BIT),
-			loadShader(getShadersPath() + "base/uioverlay.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT),
+			loadShader(getShadersPath() + "base/uioverlay.vert.spv", VK_SHADER_STAGE_VERTEX_BIT),    // UI 顶点着色器
+			loadShader(getShadersPath() + "base/uioverlay.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT),  // UI 片段着色器
 		};
-		ui.prepareResources();
-		ui.preparePipeline(pipelineCache, renderPass, swapChain.colorFormat, depthFormat);
+		ui.prepareResources();  // 准备 UI 资源
+		ui.preparePipeline(pipelineCache, renderPass, swapChain.colorFormat, depthFormat);  // 准备 UI 管线
 	}
 }
 
+/**
+ * @brief 加载着色器
+ * @param fileName 着色器文件路径
+ * @param stage 着色器阶段
+ * @return 着色器阶段创建信息
+ */
 VkPipelineShaderStageCreateInfo VulkanExampleBase::loadShader(std::string fileName, VkShaderStageFlagBits stage)
 {
 	VkPipelineShaderStageCreateInfo shaderStage{
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-		.stage = stage,
-		.pName = "main"
+		.stage = stage,      // 着色器阶段
+		.pName = "main"      // 入口函数名
 	};
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
+	// Android 平台：从 Asset Manager 加载着色器
 	shaderStage.module = vks::tools::loadShader(androidApp->activity->assetManager, fileName.c_str(), device);
 #else
+	// 其他平台：从文件系统加载着色器
 	shaderStage.module = vks::tools::loadShader(fileName.c_str(), device);
 #endif
-	assert(shaderStage.module != VK_NULL_HANDLE);
-	shaderModules.push_back(shaderStage.module);
+	assert(shaderStage.module != VK_NULL_HANDLE);  // 确保着色器模块创建成功
+	shaderModules.push_back(shaderStage.module);  // 保存着色器模块以便后续清理
 	return shaderStage;
 }
 
+/**
+ * @brief 下一帧处理
+ * 更新帧计时器、相机和 FPS 统计
+ */
 void VulkanExampleBase::nextFrame()
 {
-	auto tStart = std::chrono::high_resolution_clock::now();
-	render();
-	frameCounter++;
-	auto tEnd = std::chrono::high_resolution_clock::now();
+	auto tStart = std::chrono::high_resolution_clock::now();  // 记录开始时间
+	render();  // 渲染当前帧
+	frameCounter++;  // 帧计数器递增
+	auto tEnd = std::chrono::high_resolution_clock::now();  // 记录结束时间
 #if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK) || defined(VK_USE_PLATFORM_METAL_EXT)) && !defined(VK_EXAMPLE_XCODE_GENERATED)
 	// SRS - Calculate tDiff as time between frames vs. rendering time for iOS/macOS displayLink-driven examples project
+	// iOS/macOS：计算帧间隔时间（用于 displayLink 驱动的示例项目）
 	auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tPrevEnd).count();
 #else
+	// 其他平台：计算渲染时间
 	auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
 #endif
-	frameTimer = (float)tDiff / 1000.0f;
-	camera.update(frameTimer);
+	frameTimer = (float)tDiff / 1000.0f;  // 转换为秒
+	camera.update(frameTimer);  // 更新相机
 	// Convert to clamped timer value
-	if (!paused)
+	// 转换为限制在 -1.0 到 1.0 之间的计时器值
+	if (!paused)  // 如果未暂停
 	{
-		timer += timerSpeed * frameTimer;
-		if (timer > 1.0)
+		timer += timerSpeed * frameTimer;  // 更新计时器
+		if (timer > 1.0)  // 如果超过 1.0
 		{
-			timer -= 1.0f;
+			timer -= 1.0f;  // 减去 1.0，保持在范围内
 		}
 	}
+	// 计算 FPS（每秒更新一次）
 	float fpsTimer = (float)(std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count());
-	if (fpsTimer > 1000.0f)
+	if (fpsTimer > 1000.0f)  // 如果超过 1 秒
 	{
-		lastFPS = static_cast<uint32_t>((float)frameCounter * (1000.0f / fpsTimer));
+		lastFPS = static_cast<uint32_t>((float)frameCounter * (1000.0f / fpsTimer));  // 计算 FPS
 #if defined(_WIN32)
-		if (!settings.overlay)	{
-			std::string windowTitle = getWindowTitle();
-			SetWindowText(window, windowTitle.c_str());
+		if (!settings.overlay)	{  // 如果不显示 UI 叠加层
+			std::string windowTitle = getWindowTitle();  // 获取窗口标题
+			SetWindowText(window, windowTitle.c_str());  // 更新窗口标题
 		}
 #endif
-		frameCounter = 0;
-		lastTimestamp = tEnd;
+		frameCounter = 0;  // 重置帧计数器
+		lastTimestamp = tEnd;  // 更新最后时间戳
 	}
-	tPrevEnd = tEnd;
+	tPrevEnd = tEnd;  // 保存结束时间（用于下一帧计算）
 }
 
+/**
+ * @brief 渲染循环
+ * 主渲染循环，处理窗口事件和帧渲染
+ */
 void VulkanExampleBase::renderLoop()
 {
 // SRS - for non-apple plaforms, handle benchmarking here within VulkanExampleBase::renderLoop()
 //     - for macOS, handle benchmarking within NSApp rendering loop via displayLinkOutputCb()
+// 对于非 Apple 平台，在此处处理基准测试
+// 对于 macOS，通过 displayLinkOutputCb() 在 NSApp 渲染循环中处理基准测试
 #if !(defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK) || defined(VK_USE_PLATFORM_METAL_EXT))
-	if (benchmark.active) {
+	if (benchmark.active) {  // 如果基准测试激活
 #if defined(VK_USE_PLATFORM_WAYLAND_KHR)
+		// Wayland 平台：等待配置完成
 		while (!configured)
 		{
-			if (wl_display_dispatch(display) == -1)
+			if (wl_display_dispatch(display) == -1)  // 分发事件
 				break;
 		}
+		// 准备读取事件
 		while (wl_display_prepare_read(display) != 0)
 		{
-			if (wl_display_dispatch_pending(display) == -1)
+			if (wl_display_dispatch_pending(display) == -1)  // 分发待处理事件
 				break;
 		}
-		wl_display_flush(display);
-		wl_display_read_events(display);
-		if (wl_display_dispatch_pending(display) == -1)
+		wl_display_flush(display);  // 刷新显示
+		wl_display_read_events(display);  // 读取事件
+		if (wl_display_dispatch_pending(display) == -1)  // 分发待处理事件
 			return;
 #endif
-		benchmark.run([=, this] { render(); }, vulkanDevice->properties);
-		vkDeviceWaitIdle(device);
+		benchmark.run([=, this] { render(); }, vulkanDevice->properties);  // 运行基准测试
+		vkDeviceWaitIdle(device);  // 等待设备空闲
 		if (!benchmark.filename.empty()) {
-			benchmark.saveResults();
+			benchmark.saveResults();  // 保存基准测试结果
 		}
-		return;
+		return;  // 基准测试完成后退出
 	}
 #endif
 
-	destWidth = width;
-	destHeight = height;
-	lastTimestamp = std::chrono::high_resolution_clock::now();
-	tPrevEnd = lastTimestamp;
+	destWidth = width;   // 设置目标宽度
+	destHeight = height; // 设置目标高度
+	lastTimestamp = std::chrono::high_resolution_clock::now();  // 初始化最后时间戳
+	tPrevEnd = lastTimestamp;  // 初始化上一帧结束时间
 #if defined(_WIN32)
-	MSG msg;
-	bool quitMessageReceived = false;
-	while (!quitMessageReceived) {
-		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
-			if (msg.message == WM_QUIT) {
-				quitMessageReceived = true;
-				break;
+	// Windows 平台：消息循环
+	MSG msg;  // Windows 消息结构
+	bool quitMessageReceived = false;  // 是否收到退出消息
+	while (!quitMessageReceived) {  // 主循环
+		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {  // 检查并获取消息（非阻塞）
+			TranslateMessage(&msg);  // 翻译消息
+			DispatchMessage(&msg);  // 分发消息
+			if (msg.message == WM_QUIT) {  // 如果收到退出消息
+				quitMessageReceived = true;  // 设置退出标志
+				break;  // 跳出消息循环
 			}
 		}
-		if (prepared && !IsIconic(window)) {
-			nextFrame();
+		if (prepared && !IsIconic(window)) {  // 如果已准备且窗口未最小化
+			nextFrame();  // 处理下一帧
 		}
 	}
 #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
-	while (true)
+	// Android 平台：事件循环
+	while (true)  // 主循环
 	{
-		int ident;
-		int events;
-		struct android_poll_source* source;
-		bool destroy = false;
+		int ident;  // 轮询标识符
+		int events;  // 事件标志
+		struct android_poll_source* source;  // 事件源指针
+		bool destroy = false;  // 是否请求销毁
 
-		focused = true;
+		focused = true;  // 设置焦点状态
 
-		while ((ident = ALooper_pollOnce(focused ? 0 : -1, nullptr, &events, (void**)&source)) > ALOOPER_POLL_TIMEOUT)
+		while ((ident = ALooper_pollOnce(focused ? 0 : -1, nullptr, &events, (void**)&source)) > ALOOPER_POLL_TIMEOUT)  // 轮询事件（如果聚焦则非阻塞，否则阻塞）
 		{
-			if (source != nullptr)
+			if (source != nullptr)  // 如果有事件源
 			{
-				source->process(androidApp, source);
+				source->process(androidApp, source);  // 处理事件
 			}
-			if (androidApp->destroyRequested != 0)
+			if (androidApp->destroyRequested != 0)  // 如果请求销毁应用
 			{
-				LOGD("Android app destroy requested");
-				destroy = true;
-				break;
+				LOGD("Android app destroy requested");  // 输出日志
+				destroy = true;  // 设置销毁标志
+				break;  // 跳出循环
 			}
 		}
 
 		// App destruction requested
 		// Exit loop, example will be destroyed in application main
-		if (destroy)
+		// 应用销毁请求
+		// 退出循环，示例将在应用程序主函数中销毁
+		if (destroy)  // 如果请求销毁
 		{
-			ANativeActivity_finish(androidApp->activity);
-			break;
+			ANativeActivity_finish(androidApp->activity);  // 完成 Android 活动
+			break;  // 跳出主循环
 		}
 
 		// Render frame
-		if (prepared)
+		// 渲染帧
+		if (prepared)  // 如果已准备
 		{
-			auto tStart = std::chrono::high_resolution_clock::now();
-			render();
-			frameCounter++;
-			auto tEnd = std::chrono::high_resolution_clock::now();
-			auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
-			frameTimer = tDiff / 1000.0f;
-			camera.update(frameTimer);
+			auto tStart = std::chrono::high_resolution_clock::now();  // 记录开始时间
+			render();  // 渲染
+			frameCounter++;  // 帧计数器递增
+			auto tEnd = std::chrono::high_resolution_clock::now();  // 记录结束时间
+			auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();  // 计算渲染时间（毫秒）
+			frameTimer = tDiff / 1000.0f;  // 转换为秒
+			camera.update(frameTimer);  // 更新相机
 			// Convert to clamped timer value
-			if (!paused)
+			// 转换为限制在 -1.0 到 1.0 之间的计时器值
+			if (!paused)  // 如果未暂停
 			{
-				timer += timerSpeed * frameTimer;
-				if (timer > 1.0)
+				timer += timerSpeed * frameTimer;  // 更新计时器
+				if (timer > 1.0)  // 如果超过 1.0
 				{
-					timer -= 1.0f;
+					timer -= 1.0f;  // 减去 1.0，保持在范围内
 				}
 			}
-			float fpsTimer = std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();
-			if (fpsTimer > 1000.0f)
+			float fpsTimer = std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();  // 计算自上次 FPS 更新以来的时间（毫秒）
+			if (fpsTimer > 1000.0f)  // 如果超过 1 秒
 			{
-				lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
-				frameCounter = 0;
-				lastTimestamp = tEnd;
+				lastFPS = (float)frameCounter * (1000.0f / fpsTimer);  // 计算 FPS
+				frameCounter = 0;  // 重置帧计数器
+				lastTimestamp = tEnd;  // 更新最后时间戳
 			}
 
-			updateOverlay();
+			updateOverlay();  // 更新 UI 叠加层
 
 			// Check touch state (for movement)
-			if (touchDown) {
-				touchTimer += frameTimer;
+			// 检查触摸状态（用于移动）
+			if (touchDown) {  // 如果触摸按下
+				touchTimer += frameTimer;  // 增加触摸计时器
 			}
-			if (touchTimer >= 1.0) {
-				camera.keys.up = true;
+			if (touchTimer >= 1.0) {  // 如果触摸时间超过 1 秒
+				camera.keys.up = true;  // 设置向上移动键
 			}
 
 			// Check gamepad state
-			const float deadZone = 0.0015f;
-			if (camera.type != Camera::CameraType::firstperson)
+			// 检查游戏手柄状态
+			const float deadZone = 0.0015f;  // 死区（忽略小幅度输入）
+			if (camera.type != Camera::CameraType::firstperson)  // 如果不是第一人称相机
 			{
 				// Rotate
-				if (std::abs(gamePadState.axisLeft.x) > deadZone)
+				// 旋转
+				if (std::abs(gamePadState.axisLeft.x) > deadZone)  // 如果左摇杆 X 轴超过死区
 				{
-					camera.rotate(glm::vec3(0.0f, gamePadState.axisLeft.x * 0.5f, 0.0f));
+					camera.rotate(glm::vec3(0.0f, gamePadState.axisLeft.x * 0.5f, 0.0f));  // 绕 Y 轴旋转
 				}
-				if (std::abs(gamePadState.axisLeft.y) > deadZone)
+				if (std::abs(gamePadState.axisLeft.y) > deadZone)  // 如果左摇杆 Y 轴超过死区
 				{
-					camera.rotate(glm::vec3(gamePadState.axisLeft.y * 0.5f, 0.0f, 0.0f));
+					camera.rotate(glm::vec3(gamePadState.axisLeft.y * 0.5f, 0.0f, 0.0f));  // 绕 X 轴旋转
 				}
 				// Zoom
-				if (std::abs(gamePadState.axisRight.y) > deadZone)
+				// 缩放
+				if (std::abs(gamePadState.axisRight.y) > deadZone)  // 如果右摇杆 Y 轴超过死区
 				{
-					camera.translate(glm::vec3(0.0f, 0.0f, gamePadState.axisRight.y * 0.01f));
+					camera.translate(glm::vec3(0.0f, 0.0f, gamePadState.axisRight.y * 0.01f));  // 沿 Z 轴平移（缩放）
 				}
 			}
-			else
+			else  // 如果是第一人称相机
 			{
-				camera.updatePad(gamePadState.axisLeft, gamePadState.axisRight, frameTimer);
+				camera.updatePad(gamePadState.axisLeft, gamePadState.axisRight, frameTimer);  // 使用游戏手柄更新相机
 			}
 		}
 	}
@@ -638,233 +715,266 @@ void VulkanExampleBase::renderLoop()
 	}
 }
 
+/**
+ * @brief 更新 UI 叠加层
+ * 更新 ImGui 状态并渲染 UI
+ */
 void VulkanExampleBase::updateOverlay()
 {
-	if (!settings.overlay)
-		return;
+	if (!settings.overlay)  // 如果未启用 UI 叠加层
+		return;  // 直接返回
 
-	ImGuiIO& io = ImGui::GetIO();
-	io.DisplaySize = ImVec2((float)width, (float)height);
-	io.DeltaTime = frameTimer;
-	io.MousePos = ImVec2(mouseState.position.x, mouseState.position.y);
-	io.MouseDown[0] = mouseState.buttons.left && ui.visible;
-	io.MouseDown[1] = mouseState.buttons.right && ui.visible;
-	io.MouseDown[2] = mouseState.buttons.middle && ui.visible;
+	ImGuiIO& io = ImGui::GetIO();  // 获取 ImGui IO
+	io.DisplaySize = ImVec2((float)width, (float)height);  // 设置显示大小
+	io.DeltaTime = frameTimer;  // 设置帧时间
+	io.MousePos = ImVec2(mouseState.position.x, mouseState.position.y);  // 设置鼠标位置
+	io.MouseDown[0] = mouseState.buttons.left && ui.visible;   // 左键按下（仅在 UI 可见时）
+	io.MouseDown[1] = mouseState.buttons.right && ui.visible;  // 右键按下（仅在 UI 可见时）
+	io.MouseDown[2] = mouseState.buttons.middle && ui.visible; // 中键按下（仅在 UI 可见时）
 
-	ImGui::NewFrame();
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
-	ImGui::SetNextWindowPos(ImVec2(10 * ui.scale, 10 * ui.scale));
-	ImGui::SetNextWindowSize(ImVec2(0, 0), ImGuiSetCond_FirstUseEver);
-	ImGui::Begin("Vulkan Example", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
-	ImGui::TextUnformatted(title.c_str());
-	ImGui::TextUnformatted(deviceProperties.deviceName);
-	ImGui::Text("%.2f ms/frame (%.1d fps)", (1000.0f / lastFPS), lastFPS);
+	ImGui::NewFrame();  // 开始新帧
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);  // 设置窗口圆角为 0
+	ImGui::SetNextWindowPos(ImVec2(10 * ui.scale, 10 * ui.scale));  // 设置窗口位置（左上角，带缩放）
+	ImGui::SetNextWindowSize(ImVec2(0, 0), ImGuiSetCond_FirstUseEver);  // 设置窗口大小（首次使用时自动调整）
+	ImGui::Begin("Vulkan Example", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);  // 开始窗口（自动调整大小、不可调整大小、不可移动）
+	ImGui::TextUnformatted(title.c_str());  // 显示标题
+	ImGui::TextUnformatted(deviceProperties.deviceName);  // 显示设备名称
+	ImGui::Text("%.2f ms/frame (%.1d fps)", (1000.0f / lastFPS), lastFPS);  // 显示每帧时间和 FPS
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
-	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 5.0f * ui.scale));
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 5.0f * ui.scale));  // Android：设置项目间距
 #endif
-	ImGui::PushItemWidth(110.0f * ui.scale);
-	OnUpdateUIOverlay(&ui);
-	ImGui::PopItemWidth();
+	ImGui::PushItemWidth(110.0f * ui.scale);  // 设置项目宽度（带缩放）
+	OnUpdateUIOverlay(&ui);  // 调用用户定义的 UI 更新函数
+	ImGui::PopItemWidth();  // 恢复项目宽度
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
-	ImGui::PopStyleVar();
+	ImGui::PopStyleVar();  // Android：恢复样式变量
 #endif
-	ImGui::End();
-	ImGui::PopStyleVar();
-	ImGui::Render();
+	ImGui::End();  // 结束窗口
+	ImGui::PopStyleVar();  // 恢复样式变量
+	ImGui::Render();  // 渲染 ImGui
 
-	ui.update(currentBuffer);
+	ui.update(currentBuffer);  // 更新 UI 叠加层（准备顶点缓冲区）
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
-	if (mouseState.buttons.left) {
-		mouseState.buttons.left = false;
+	if (mouseState.buttons.left) {  // Android：如果左键按下
+		mouseState.buttons.left = false;  // 重置左键状态（单次点击处理）
 	}
 #endif
 }
 
+/**
+ * @brief 绘制 UI 叠加层
+ * @param commandBuffer 命令缓冲区句柄
+ */
 void VulkanExampleBase::drawUI(const VkCommandBuffer commandBuffer)
 {
-	if (settings.overlay && ui.visible) {
-		const VkViewport viewport{ .width = (float)width, .height = (float)height, .minDepth = 0.0f, .maxDepth = 1.0f};
-		const VkRect2D scissor{ .extent = {.width = width, .height = height } };
-		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-		ui.draw(commandBuffer, currentBuffer);
+	if (settings.overlay && ui.visible) {  // 如果启用 UI 叠加层且 UI 可见
+		const VkViewport viewport{ .width = (float)width, .height = (float)height, .minDepth = 0.0f, .maxDepth = 1.0f};  // 创建视口（覆盖整个窗口）
+		const VkRect2D scissor{ .extent = {.width = width, .height = height } };  // 创建剪裁矩形（覆盖整个窗口）
+		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);  // 设置视口
+		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);  // 设置剪裁矩形
+		ui.draw(commandBuffer, currentBuffer);  // 绘制 UI（记录绘制命令）
 	}
 }
 
+/**
+ * @brief 准备帧
+ * 等待命令缓冲区完成（可选），更新 UI，并获取交换链中的下一个图像
+ * @param waitForFence 是否等待栅栏（确保命令缓冲区执行完成）
+ */
 void VulkanExampleBase::prepareFrame(bool waitForFence)
 {
 	// Ensure command buffer execution has finished
-	if (waitForFence) {
-		VK_CHECK_RESULT(vkWaitForFences(device, 1, &waitFences[currentBuffer], VK_TRUE, UINT64_MAX));
-		VK_CHECK_RESULT(vkResetFences(device, 1, &waitFences[currentBuffer]));
+	// 确保命令缓冲区执行已完成
+	if (waitForFence) {  // 如果需要等待栅栏
+		VK_CHECK_RESULT(vkWaitForFences(device, 1, &waitFences[currentBuffer], VK_TRUE, UINT64_MAX));  // 等待栅栏信号（无限等待）
+		VK_CHECK_RESULT(vkResetFences(device, 1, &waitFences[currentBuffer]));  // 重置栅栏
 	}
-	updateOverlay();
+	updateOverlay();  // 更新 UI 叠加层
 	// Acquire the next image from the swap chain
-	VkResult result = swapChain.acquireNextImage(presentCompleteSemaphores[currentBuffer], currentImageIndex);
+	// 从交换链获取下一个图像
+	VkResult result = swapChain.acquireNextImage(presentCompleteSemaphores[currentBuffer], currentImageIndex);  // 获取下一个交换链图像索引
 	// Recreate the swapchain if it's no longer compatible with the surface (OUT_OF_DATE)
 	// If no longer optimal (VK_SUBOPTIMAL_KHR), wait until submitFrame() in case number of swapchain images will change on resize
-	if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR)) {
-		if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-			windowResize();
+	// 如果交换链不再与表面兼容（OUT_OF_DATE），则重新创建交换链
+	// 如果不再是最优的（VK_SUBOPTIMAL_KHR），等待到 submitFrame()，以防调整大小时交换链图像数量会改变
+	if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR)) {  // 如果交换链过期或次优
+		if (result == VK_ERROR_OUT_OF_DATE_KHR) {  // 如果交换链过期
+			windowResize();  // 重新调整窗口大小（重建交换链）
 		}
-		return;
+		return;  // 返回（不继续处理）
 	}
-	else {
-		VK_CHECK_RESULT(result);
+	else {  // 如果成功
+		VK_CHECK_RESULT(result);  // 检查结果
 	}
 }
 
+/**
+ * @brief 提交帧
+ * 提交命令缓冲区到队列并呈现交换链图像
+ * @param skipQueueSubmit 是否跳过队列提交（仅呈现）
+ */
 void VulkanExampleBase::submitFrame(bool skipQueueSubmit)
 {
-	if (!skipQueueSubmit) {
-		const VkPipelineStageFlags waitPipelineStage{ VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+	if (!skipQueueSubmit) {  // 如果不跳过队列提交
+		const VkPipelineStageFlags waitPipelineStage{ VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };  // 等待管线阶段（颜色附件输出）
 		VkSubmitInfo submitInfo{
-			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-			.waitSemaphoreCount = 1,
-			.pWaitSemaphores = &presentCompleteSemaphores[currentBuffer],
-			.pWaitDstStageMask = &waitPipelineStage,
-			.commandBufferCount = 1,
-			.pCommandBuffers = &drawCmdBuffers[currentBuffer],
-			.signalSemaphoreCount = 1,
-			.pSignalSemaphores = &renderCompleteSemaphores[currentImageIndex]
+			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,  // 结构体类型
+			.waitSemaphoreCount = 1,  // 等待信号量数量
+			.pWaitSemaphores = &presentCompleteSemaphores[currentBuffer],  // 等待信号量（等待交换链图像可用）
+			.pWaitDstStageMask = &waitPipelineStage,  // 等待目标阶段掩码
+			.commandBufferCount = 1,  // 命令缓冲区数量
+			.pCommandBuffers = &drawCmdBuffers[currentBuffer],  // 命令缓冲区数组
+			.signalSemaphoreCount = 1,  // 信号信号量数量
+			.pSignalSemaphores = &renderCompleteSemaphores[currentImageIndex]  // 信号信号量（渲染完成）
 		};
-		VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, waitFences[currentBuffer]));
+		VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, waitFences[currentBuffer]));  // 提交到队列（带栅栏）
 	}
 
 	VkPresentInfoKHR presentInfo{
-		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-		.waitSemaphoreCount = 1,
-		.pWaitSemaphores = &renderCompleteSemaphores[currentImageIndex],
-		.swapchainCount = 1,
-		.pSwapchains = &swapChain.swapChain,
-		.pImageIndices = &currentImageIndex
+		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,  // 结构体类型
+		.waitSemaphoreCount = 1,  // 等待信号量数量
+		.pWaitSemaphores = &renderCompleteSemaphores[currentImageIndex],  // 等待信号量（等待渲染完成）
+		.swapchainCount = 1,  // 交换链数量
+		.pSwapchains = &swapChain.swapChain,  // 交换链数组
+		.pImageIndices = &currentImageIndex  // 图像索引数组
 	};
-	VkResult result = vkQueuePresentKHR(queue, &presentInfo);
+	VkResult result = vkQueuePresentKHR(queue, &presentInfo);  // 呈现交换链图像
 	// Recreate the swapchain if it's no longer compatible with the surface (OUT_OF_DATE) or no longer optimal for presentation (SUBOPTIMAL)
-	if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR)) {
-		windowResize();
-		if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-			return;
+	// 如果交换链不再与表面兼容（OUT_OF_DATE）或不再适合呈现（SUBOPTIMAL），则重新创建交换链
+	if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR)) {  // 如果交换链过期或次优
+		windowResize();  // 重新调整窗口大小（重建交换链）
+		if (result == VK_ERROR_OUT_OF_DATE_KHR) {  // 如果交换链过期
+			return;  // 返回（不继续处理）
 		}
 	}
-	else {
-		VK_CHECK_RESULT(result);
+	else {  // 如果成功
+		VK_CHECK_RESULT(result);  // 检查结果
 	}
 	// Select the next frame to render to, based on the max. no. of concurrent frames
-	currentBuffer = (currentBuffer + 1) % maxConcurrentFrames;
+	// 根据最大并发帧数选择下一帧进行渲染
+	currentBuffer = (currentBuffer + 1) % maxConcurrentFrames;  // 循环选择下一个缓冲区索引
 }
 
+/**
+ * @brief 构造函数
+ * 初始化 Vulkan 示例基类，解析命令行参数并设置相应配置
+ */
 VulkanExampleBase::VulkanExampleBase()
 {
 	// Command line arguments
-	commandLineParser.add("help", { "--help" }, 0, "Show help");
-	commandLineParser.add("validation", { "-v", "--validation" }, 0, "Enable validation layers");
-	commandLineParser.add("validationlogfile", { "-vl", "--validationlogfile" }, 0, "Log validation messages to a textfile");
-	commandLineParser.add("vsync", { "-vs", "--vsync" }, 0, "Enable V-Sync");
-	commandLineParser.add("fullscreen", { "-f", "--fullscreen" }, 0, "Start in fullscreen mode");
-	commandLineParser.add("width", { "-w", "--width" }, 1, "Set window width");
-	commandLineParser.add("height", { "-h", "--height" }, 1, "Set window height");
-	commandLineParser.add("shaders", { "-s", "--shaders" }, 1, "Select shader type to use (gls, hlsl or slang)");
-	commandLineParser.add("gpuselection", { "-g", "--gpu" }, 1, "Select GPU to run on");
-	commandLineParser.add("gpulist", { "-gl", "--listgpus" }, 0, "Display a list of available Vulkan devices");
-	commandLineParser.add("benchmark", { "-b", "--benchmark" }, 0, "Run example in benchmark mode");
-	commandLineParser.add("benchmarkwarmup", { "-bw", "--benchwarmup" }, 1, "Set warmup time for benchmark mode in seconds");
-	commandLineParser.add("benchmarkruntime", { "-br", "--benchruntime" }, 1, "Set duration time for benchmark mode in seconds");
-	commandLineParser.add("benchmarkresultfile", { "-bf", "--benchfilename" }, 1, "Set file name for benchmark results");
-	commandLineParser.add("benchmarkresultframes", { "-bt", "--benchframetimes" }, 0, "Save frame times to benchmark results file");
-	commandLineParser.add("benchmarkframes", { "-bfs", "--benchmarkframes" }, 1, "Only render the given number of frames");
+	// 命令行参数
+	commandLineParser.add("help", { "--help" }, 0, "Show help");  // 帮助选项
+	commandLineParser.add("validation", { "-v", "--validation" }, 0, "Enable validation layers");  // 验证层选项
+	commandLineParser.add("validationlogfile", { "-vl", "--validationlogfile" }, 0, "Log validation messages to a textfile");  // 验证日志文件选项
+	commandLineParser.add("vsync", { "-vs", "--vsync" }, 0, "Enable V-Sync");  // 垂直同步选项
+	commandLineParser.add("fullscreen", { "-f", "--fullscreen" }, 0, "Start in fullscreen mode");  // 全屏模式选项
+	commandLineParser.add("width", { "-w", "--width" }, 1, "Set window width");  // 窗口宽度选项
+	commandLineParser.add("height", { "-h", "--height" }, 1, "Set window height");  // 窗口高度选项
+	commandLineParser.add("shaders", { "-s", "--shaders" }, 1, "Select shader type to use (gls, hlsl or slang)");  // 着色器类型选项
+	commandLineParser.add("gpuselection", { "-g", "--gpu" }, 1, "Select GPU to run on");  // GPU 选择选项
+	commandLineParser.add("gpulist", { "-gl", "--listgpus" }, 0, "Display a list of available Vulkan devices");  // GPU 列表选项
+	commandLineParser.add("benchmark", { "-b", "--benchmark" }, 0, "Run example in benchmark mode");  // 基准测试选项
+	commandLineParser.add("benchmarkwarmup", { "-bw", "--benchwarmup" }, 1, "Set warmup time for benchmark mode in seconds");  // 基准测试预热时间选项
+	commandLineParser.add("benchmarkruntime", { "-br", "--benchruntime" }, 1, "Set duration time for benchmark mode in seconds");  // 基准测试运行时间选项
+	commandLineParser.add("benchmarkresultfile", { "-bf", "--benchfilename" }, 1, "Set file name for benchmark results");  // 基准测试结果文件名选项
+	commandLineParser.add("benchmarkresultframes", { "-bt", "--benchframetimes" }, 0, "Save frame times to benchmark results file");  // 基准测试帧时间选项
+	commandLineParser.add("benchmarkframes", { "-bfs", "--benchmarkframes" }, 1, "Only render the given number of frames");  // 基准测试帧数选项
 #if (!(defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK) || defined(VK_USE_PLATFORM_METAL_EXT)))
-	commandLineParser.add("resourcepath", { "-rp", "--resourcepath" }, 1, "Set path for dir where assets and shaders folder is present");
+	commandLineParser.add("resourcepath", { "-rp", "--resourcepath" }, 1, "Set path for dir where assets and shaders folder is present");  // 资源路径选项
 #endif
-	commandLineParser.parse(args);
-	if (commandLineParser.isSet("help")) {
+	commandLineParser.parse(args);  // 解析命令行参数
+	if (commandLineParser.isSet("help")) {  // 如果设置了帮助选项
 #if defined(_WIN32)
-		setupConsole("Vulkan example");
+		setupConsole("Vulkan example");  // Windows：设置控制台
 #endif
-		commandLineParser.printHelp();
-		std::cin.get();
-		exit(0);
+		commandLineParser.printHelp();  // 打印帮助信息
+		std::cin.get();  // 等待用户按键
+		exit(0);  // 退出程序
 	}
-	if (commandLineParser.isSet("validation")) {
-		settings.validation = true;
+	if (commandLineParser.isSet("validation")) {  // 如果设置了验证选项
+		settings.validation = true;  // 启用验证层
 	}
-	if (commandLineParser.isSet("validationlogfile")) {
-		vks::debug::logToFile = true;
+	if (commandLineParser.isSet("validationlogfile")) {  // 如果设置了验证日志文件选项
+		vks::debug::logToFile = true;  // 启用日志文件输出
 	}
-	if (commandLineParser.isSet("vsync")) {
-		settings.vsync = true;
+	if (commandLineParser.isSet("vsync")) {  // 如果设置了垂直同步选项
+		settings.vsync = true;  // 启用垂直同步
 	}
-	if (commandLineParser.isSet("height")) {
-		height = commandLineParser.getValueAsInt("height", height);
+	if (commandLineParser.isSet("height")) {  // 如果设置了高度选项
+		height = commandLineParser.getValueAsInt("height", height);  // 获取高度值
 	}
-	if (commandLineParser.isSet("width")) {
-		width = commandLineParser.getValueAsInt("width", width);
+	if (commandLineParser.isSet("width")) {  // 如果设置了宽度选项
+		width = commandLineParser.getValueAsInt("width", width);  // 获取宽度值
 	}
-	if (commandLineParser.isSet("fullscreen")) {
-		settings.fullscreen = true;
+	if (commandLineParser.isSet("fullscreen")) {  // 如果设置了全屏选项
+		settings.fullscreen = true;  // 启用全屏模式
 	}
-	if (commandLineParser.isSet("shaders")) {
-		std::string value = commandLineParser.getValueAsString("shaders", "glsl");
-		if ((value != "glsl") && (value != "hlsl") && (value != "slang")) {
-			std::cerr << "Shader type must be one of 'glsl', 'hlsl' or 'slang'\n";
+	if (commandLineParser.isSet("shaders")) {  // 如果设置了着色器选项
+		std::string value = commandLineParser.getValueAsString("shaders", "glsl");  // 获取着色器类型值
+		if ((value != "glsl") && (value != "hlsl") && (value != "slang")) {  // 如果值不是有效的着色器类型
+			std::cerr << "Shader type must be one of 'glsl', 'hlsl' or 'slang'\n";  // 输出错误信息
 		}
-		else {
-			shaderDir = value;
+		else {  // 如果值有效
+			shaderDir = value;  // 设置着色器目录
 		}
 	}
-	if (commandLineParser.isSet("benchmark")) {
-		benchmark.active = true;
-		vks::tools::errorModeSilent = true;
+	if (commandLineParser.isSet("benchmark")) {  // 如果设置了基准测试选项
+		benchmark.active = true;  // 激活基准测试
+		vks::tools::errorModeSilent = true;  // 启用静默错误模式
 	}
-	if (commandLineParser.isSet("benchmarkwarmup")) {
-		benchmark.warmup = commandLineParser.getValueAsInt("benchmarkwarmup", 0);
+	if (commandLineParser.isSet("benchmarkwarmup")) {  // 如果设置了基准测试预热时间选项
+		benchmark.warmup = commandLineParser.getValueAsInt("benchmarkwarmup", 0);  // 获取预热时间（秒）
 	}
-	if (commandLineParser.isSet("benchmarkruntime")) {
-		benchmark.duration = commandLineParser.getValueAsInt("benchmarkruntime", benchmark.duration);
+	if (commandLineParser.isSet("benchmarkruntime")) {  // 如果设置了基准测试运行时间选项
+		benchmark.duration = commandLineParser.getValueAsInt("benchmarkruntime", benchmark.duration);  // 获取运行时间（秒）
 	}
-	if (commandLineParser.isSet("benchmarkresultfile")) {
-		benchmark.filename = commandLineParser.getValueAsString("benchmarkresultfile", benchmark.filename);
+	if (commandLineParser.isSet("benchmarkresultfile")) {  // 如果设置了基准测试结果文件名选项
+		benchmark.filename = commandLineParser.getValueAsString("benchmarkresultfile", benchmark.filename);  // 获取结果文件名
 	}
-	if (commandLineParser.isSet("benchmarkresultframes")) {
-		benchmark.outputFrameTimes = true;
+	if (commandLineParser.isSet("benchmarkresultframes")) {  // 如果设置了基准测试帧时间选项
+		benchmark.outputFrameTimes = true;  // 启用帧时间输出
 	}
-	if (commandLineParser.isSet("benchmarkframes")) {
-		benchmark.outputFrames = commandLineParser.getValueAsInt("benchmarkframes", benchmark.outputFrames);
+	if (commandLineParser.isSet("benchmarkframes")) {  // 如果设置了基准测试帧数选项
+		benchmark.outputFrames = commandLineParser.getValueAsInt("benchmarkframes", benchmark.outputFrames);  // 获取输出帧数
 	}
 #if (!(defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK) || defined(VK_USE_PLATFORM_METAL_EXT)))
-	if(commandLineParser.isSet("resourcepath")) {
-		vks::tools::resourcePath = commandLineParser.getValueAsString("resourcepath", "");
+	if(commandLineParser.isSet("resourcepath")) {  // 如果设置了资源路径选项
+		vks::tools::resourcePath = commandLineParser.getValueAsString("resourcepath", "");  // 获取资源路径
 	}
 #else
 	// With MoltenVK, use layer settings extension to configure it with common project config settings
 	// Other implementations like lavapipe and KosmicKrisp do not need this
-	uint32_t extCount = 0;
-	vkEnumerateInstanceExtensionProperties(nullptr, &extCount, nullptr);
-	if (extCount > 0)
+	// 使用 MoltenVK 时，使用层设置扩展来配置它，使用通用项目配置设置
+	// 其他实现（如 lavapipe 和 KosmicKrisp）不需要此设置
+	uint32_t extCount = 0;  // 扩展数量
+	vkEnumerateInstanceExtensionProperties(nullptr, &extCount, nullptr);  // 获取实例扩展数量
+	if (extCount > 0)  // 如果有扩展
 	{
-		std::vector<VkExtensionProperties> extensions(extCount);
-		if (vkEnumerateInstanceExtensionProperties(nullptr, &extCount, &extensions.front()) == VK_SUCCESS)
+		std::vector<VkExtensionProperties> extensions(extCount);  // 创建扩展属性向量
+		if (vkEnumerateInstanceExtensionProperties(nullptr, &extCount, &extensions.front()) == VK_SUCCESS)  // 获取所有实例扩展属性
 		{
-			for (VkExtensionProperties& extension : extensions)
+			for (VkExtensionProperties& extension : extensions)  // 遍历所有扩展
 			{
-				if (std::strcmp(extension.extensionName, VK_EXT_LAYER_SETTINGS_EXTENSION_NAME) == 0)
+				if (std::strcmp(extension.extensionName, VK_EXT_LAYER_SETTINGS_EXTENSION_NAME) == 0)  // 如果找到层设置扩展
 				{
-					enabledInstanceExtensions.push_back(VK_EXT_LAYER_SETTINGS_EXTENSION_NAME);
+					enabledInstanceExtensions.push_back(VK_EXT_LAYER_SETTINGS_EXTENSION_NAME);  // 添加层设置扩展
 
 					// Configure MoltenVK to use to use a dedicated compute queue (see compute[*] and timelinesemaphore samples)
+					// 配置 MoltenVK 使用专用计算队列（参见 compute[*] 和 timelinesemaphore 示例）
 					VkLayerSettingEXT layerSetting{
-						.pLayerName = "MoltenVK",
-						.pSettingName = "MVK_CONFIG_SPECIALIZED_QUEUE_FAMILIES",
-						.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
-						.valueCount = 1
+						.pLayerName = "MoltenVK",  // 层名称
+						.pSettingName = "MVK_CONFIG_SPECIALIZED_QUEUE_FAMILIES",  // 设置名称（专用队列族）
+						.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,  // 设置类型（布尔值）
+						.valueCount = 1  // 值数量
 					};
 					// Make this static so layer setting reference remains valid after leaving constructor scope
-					static const VkBool32 layerSettingOn = VK_TRUE;
-					layerSetting.pValues = &layerSettingOn;
-					enabledLayerSettings.push_back(layerSetting);
+					// 使其为静态，以便层设置引用在离开构造函数作用域后仍然有效
+					static const VkBool32 layerSettingOn = VK_TRUE;  // 静态布尔值（启用）
+					layerSetting.pValues = &layerSettingOn;  // 设置值指针
+					enabledLayerSettings.push_back(layerSetting);  // 添加到启用的层设置列表
 					
-					break;
+					break;  // 跳出循环
 				}
 			}
 		}
@@ -873,85 +983,94 @@ VulkanExampleBase::VulkanExampleBase()
 
 #if !defined(VK_USE_PLATFORM_ANDROID_KHR)
 	// Check for a valid asset path
-	struct stat info;
-	if (stat(getAssetPath().c_str(), &info) != 0)
+	// 检查有效的资源路径
+	struct stat info;  // 文件状态结构
+	if (stat(getAssetPath().c_str(), &info) != 0)  // 如果无法获取资源路径状态（路径不存在）
 	{
 #if defined(_WIN32)
-		std::string msg = "Could not locate asset path in \"" + getAssetPath() + "\" !";
-		MessageBox(NULL, msg.c_str(), "Fatal error", MB_OK | MB_ICONERROR);
+		std::string msg = "Could not locate asset path in \"" + getAssetPath() + "\" !";  // 构建错误消息
+		MessageBox(NULL, msg.c_str(), "Fatal error", MB_OK | MB_ICONERROR);  // Windows：显示消息框
 #else
-		std::cerr << "Error: Could not find asset path in " << getAssetPath() << "\n";
+		std::cerr << "Error: Could not find asset path in " << getAssetPath() << "\n";  // 其他平台：输出错误信息
 #endif
-		exit(-1);
+		exit(-1);  // 退出程序
 	}
 #endif
 
 	// Validation for all samples can be forced at compile time using the FORCE_VALIDATION define
+	// 可以使用 FORCE_VALIDATION 定义在编译时强制所有示例启用验证
 #if defined(FORCE_VALIDATION)
-	settings.validation = true;
+	settings.validation = true;  // 强制启用验证
 #endif
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
 	// Vulkan library is loaded dynamically on Android
-	bool libLoaded = vks::android::loadVulkanLibrary();
-	assert(libLoaded);
+	// Android 平台：动态加载 Vulkan 库
+	bool libLoaded = vks::android::loadVulkanLibrary();  // 加载 Vulkan 库
+	assert(libLoaded);  // 确保库加载成功
 #elif defined(_DIRECT2DISPLAY)
-
+	// Direct2Display 平台：无需额外初始化
 #elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
-	initWaylandConnection();
+	initWaylandConnection();  // 初始化 Wayland 连接
 #elif defined(VK_USE_PLATFORM_XCB_KHR)
-	initxcbConnection();
+	initxcbConnection();  // 初始化 XCB 连接
 #endif
 
 #if defined(_WIN32)
 	// Enable console if validation is active, debug message callback will output to it
-	if (this->settings.validation)
+	// 如果启用验证，启用控制台，调试消息回调将输出到控制台
+	if (this->settings.validation)  // 如果启用验证
 	{
-		setupConsole("Vulkan example");
+		setupConsole("Vulkan example");  // 设置控制台窗口
 	}
-	setupDPIAwareness();
+	setupDPIAwareness();  // 设置 DPI 感知（高 DPI 支持）
 #endif
 }
 
+/**
+ * @brief 析构函数
+ * 清理所有 Vulkan 资源
+ */
 VulkanExampleBase::~VulkanExampleBase()
 {
 	// Clean up Vulkan resources
-	swapChain.cleanup();
-	if (descriptorPool != VK_NULL_HANDLE) {
-		vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+	// 清理 Vulkan 资源
+	swapChain.cleanup();  // 清理交换链
+	if (descriptorPool != VK_NULL_HANDLE) {  // 如果描述符池存在
+		vkDestroyDescriptorPool(device, descriptorPool, nullptr);  // 销毁描述符池
 	}
-	destroyCommandBuffers();
-	if (renderPass != VK_NULL_HANDLE) {
-		vkDestroyRenderPass(device, renderPass, nullptr);
+	destroyCommandBuffers();  // 销毁命令缓冲区
+	if (renderPass != VK_NULL_HANDLE) {  // 如果渲染通道存在
+		vkDestroyRenderPass(device, renderPass, nullptr);  // 销毁渲染通道
 	}
-	for (auto& frameBuffer : frameBuffers) {
-		vkDestroyFramebuffer(device, frameBuffer, nullptr);
+	for (auto& frameBuffer : frameBuffers) {  // 遍历所有帧缓冲区
+		vkDestroyFramebuffer(device, frameBuffer, nullptr);  // 销毁帧缓冲区
 	}
-	for (auto& shaderModule : shaderModules) {
-		vkDestroyShaderModule(device, shaderModule, nullptr);
+	for (auto& shaderModule : shaderModules) {  // 遍历所有着色器模块
+		vkDestroyShaderModule(device, shaderModule, nullptr);  // 销毁着色器模块
 	}
-	vkDestroyImageView(device, depthStencil.view, nullptr);
-	vkDestroyImage(device, depthStencil.image, nullptr);
-	vkFreeMemory(device, depthStencil.memory, nullptr);
-	vkDestroyPipelineCache(device, pipelineCache, nullptr);
-	vkDestroyCommandPool(device, cmdPool, nullptr);
-	for (auto& fence : waitFences) {
-		vkDestroyFence(device, fence, nullptr);
+	vkDestroyImageView(device, depthStencil.view, nullptr);  // 销毁深度模板图像视图
+	vkDestroyImage(device, depthStencil.image, nullptr);  // 销毁深度模板图像
+	vkFreeMemory(device, depthStencil.memory, nullptr);  // 释放深度模板内存
+	vkDestroyPipelineCache(device, pipelineCache, nullptr);  // 销毁管线缓存
+	vkDestroyCommandPool(device, cmdPool, nullptr);  // 销毁命令池
+	for (auto& fence : waitFences) {  // 遍历所有栅栏
+		vkDestroyFence(device, fence, nullptr);  // 销毁栅栏
 	}
-	for (auto& semaphore : presentCompleteSemaphores) {
-		vkDestroySemaphore(device, semaphore, nullptr);
+	for (auto& semaphore : presentCompleteSemaphores) {  // 遍历所有呈现完成信号量
+		vkDestroySemaphore(device, semaphore, nullptr);  // 销毁信号量
 	}
-	for (auto& semaphore : renderCompleteSemaphores) {
-		vkDestroySemaphore(device, semaphore, nullptr);
+	for (auto& semaphore : renderCompleteSemaphores) {  // 遍历所有渲染完成信号量
+		vkDestroySemaphore(device, semaphore, nullptr);  // 销毁信号量
 	}
-	if (settings.overlay) {
-		ui.freeResources();
+	if (settings.overlay) {  // 如果启用 UI 叠加层
+		ui.freeResources();  // 释放 UI 资源
 	}
-	delete vulkanDevice;
-	if (settings.validation) {
-		vks::debug::freeDebugCallback(instance);
+	delete vulkanDevice;  // 删除 Vulkan 设备对象
+	if (settings.validation) {  // 如果启用验证
+		vks::debug::freeDebugCallback(instance);  // 释放调试回调
 	}
-	vkDestroyInstance(instance, nullptr);
+	vkDestroyInstance(instance, nullptr);  // 销毁 Vulkan 实例
 #if defined(_DIRECT2DISPLAY)
 
 #elif defined(VK_USE_PLATFORM_DIRECTFB_EXT)

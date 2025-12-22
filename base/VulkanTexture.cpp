@@ -10,6 +10,9 @@
 
 namespace vks
 {
+	/**
+	 * @brief 更新描述符信息
+	 */
 	void Texture::updateDescriptor()
 	{
 		descriptor.sampler = sampler;
@@ -17,6 +20,9 @@ namespace vks
 		descriptor.imageLayout = imageLayout;
 	}
 
+	/**
+	 * @brief 销毁纹理资源
+	 */
 	void Texture::destroy()
 	{
 		vkDestroyImageView(device->logicalDevice, view, nullptr);
@@ -28,6 +34,12 @@ namespace vks
 		vkFreeMemory(device->logicalDevice, deviceMemory, nullptr);
 	}
 
+	/**
+	 * @brief 加载 KTX 文件
+	 * @param filename 文件名
+	 * @param target 输出的 KTX 纹理指针
+	 * @return KTX 结果
+	 */
 	ktxResult Texture::loadKTXFile(std::string filename, ktxTexture **target)
 	{
 		ktxResult result = KTX_SUCCESS;
@@ -54,13 +66,20 @@ namespace vks
 
 	/**
 	* Load a 2D texture including all mip levels
+	* 加载 2D 纹理，包括所有 Mip 级别
 	*
 	* @param filename File to load (supports .ktx)
+	* @param filename 要加载的文件名（支持 .ktx）
 	* @param format Vulkan format of the image data stored in the file
+	* @param format 文件中存储的图像数据的 Vulkan 格式
 	* @param device Vulkan device to create the texture on
+	* @param device 要在其上创建纹理的 Vulkan 设备
 	* @param copyQueue Queue used for the texture staging copy commands (must support transfer)
+	* @param copyQueue 用于纹理暂存复制命令的队列（必须支持传输）
 	* @param (Optional) imageUsageFlags Usage flags for the texture's image (defaults to VK_IMAGE_USAGE_SAMPLED_BIT)
+	* @param imageUsageFlags (可选) 纹理图像的使用标志（默认为 VK_IMAGE_USAGE_SAMPLED_BIT）
 	* @param (Optional) imageLayout Usage layout for the texture (defaults VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+	* @param imageLayout (可选) 纹理的使用布局（默认为 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL）
 	*
 	*/
 	void Texture2D::loadFromFile(std::string filename, VkFormat format, vks::VulkanDevice *device, VkQueue copyQueue, VkImageUsageFlags imageUsageFlags, VkImageLayout imageLayout)
@@ -78,13 +97,16 @@ namespace vks
 		ktx_size_t ktxTextureSize = ktxTexture_GetSize(ktxTexture);
 
 		// Get device properties for the requested texture format
+		// 获取请求纹理格式的设备属性
 		VkFormatProperties formatProperties;
 		vkGetPhysicalDeviceFormatProperties(device->physicalDevice, format, &formatProperties);
 
 		// Use a separate command buffer for texture loading
+		// 使用单独的命令缓冲区进行纹理加载
 		VkCommandBuffer copyCmd = device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
 
 		// Create a host-visible staging buffer that contains the raw image data
+		// 创建包含原始图像数据的主机可见暂存缓冲区
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingMemory;
 

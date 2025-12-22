@@ -19,8 +19,10 @@ namespace vks
 {	
 	/**
 	* Default constructor
+	* 默认构造函数
 	*
 	* @param physicalDevice Physical device that is to be used
+	* @param physicalDevice 要使用的物理设备
 	*/
 	VulkanDevice::VulkanDevice(VkPhysicalDevice physicalDevice)
 	{
@@ -29,12 +31,17 @@ namespace vks
 
 		// Store Properties features, limits and properties of the physical device for later use
 		// Device properties also contain limits and sparse properties
+		// 存储物理设备的属性、功能和限制以供后续使用
+		// 设备属性还包含限制和稀疏属性
 		vkGetPhysicalDeviceProperties(physicalDevice, &properties);
 		// Features should be checked by the examples before using them
+		// 功能应在使用前由示例检查
 		vkGetPhysicalDeviceFeatures(physicalDevice, &features);
 		// Memory properties are used regularly for creating all kinds of buffers
+		// 内存属性经常用于创建各种缓冲区
 		vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memoryProperties);
 		// Queue family properties, used for setting up requested queues upon device creation
+		// 队列族属性，用于在创建设备时设置请求的队列
 		uint32_t queueFamilyCount;
 		vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, nullptr);
 		assert(queueFamilyCount > 0);
@@ -42,6 +49,7 @@ namespace vks
 		vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilyProperties.data());
 
 		// Get list of supported extensions
+		// 获取支持的扩展列表
 		uint32_t extCount = 0;
 		vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extCount, nullptr);
 		if (extCount > 0)
@@ -59,8 +67,10 @@ namespace vks
 
 	/** 
 	* Default destructor
+	* 默认析构函数
 	*
 	* @note Frees the logical device
+	* @note 释放逻辑设备
 	*/
 	VulkanDevice::~VulkanDevice()
 	{
@@ -76,58 +86,71 @@ namespace vks
 
 	/**
 	* Get the index of a memory type that has all the requested property bits set
+	* 获取具有所有请求属性位的内存类型索引
 	*
 	* @param typeBits Bit mask with bits set for each memory type supported by the resource to request for (from VkMemoryRequirements)
+	* @param typeBits 资源支持的内存类型的位掩码（来自 VkMemoryRequirements）
 	* @param properties Bit mask of properties for the memory type to request
+	* @param properties 请求的内存类型的属性位掩码
 	* @param (Optional) memTypeFound Pointer to a bool that is set to true if a matching memory type has been found
+	* @param memTypeFound (可选) 指向布尔值的指针，如果找到匹配的内存类型则设置为 true
 	* 
 	* @return Index of the requested memory type
+	* @return 请求的内存类型索引
 	*
 	* @throw Throws an exception if memTypeFound is null and no memory type could be found that supports the requested properties
+	* @throw 如果 memTypeFound 为 null 且找不到支持请求属性的内存类型，则抛出异常
 	*/
 	uint32_t VulkanDevice::getMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties, VkBool32 *memTypeFound) const
 	{
-		for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; i++)
+		for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; i++)  // 遍历所有内存类型
 		{
-			if ((typeBits & 1) == 1)
+			if ((typeBits & 1) == 1)  // 检查当前内存类型是否在 typeBits 中（检查最低位）
 			{
-				if ((memoryProperties.memoryTypes[i].propertyFlags & properties) == properties)
+				if ((memoryProperties.memoryTypes[i].propertyFlags & properties) == properties)  // 检查内存类型的属性是否匹配请求的属性
 				{
-					if (memTypeFound)
+					if (memTypeFound)  // 如果提供了 memTypeFound 指针
 					{
-						*memTypeFound = true;
+						*memTypeFound = true;  // 设置找到标志为 true
 					}
-					return i;
+					return i;  // 返回匹配的内存类型索引
 				}
 			}
-			typeBits >>= 1;
+			typeBits >>= 1;  // 右移一位，检查下一个内存类型
 		}
 
-		if (memTypeFound)
+		if (memTypeFound)  // 如果提供了 memTypeFound 指针
 		{
-			*memTypeFound = false;
-			return 0;
+			*memTypeFound = false;  // 设置找到标志为 false
+			return 0;  // 返回 0（无效索引）
 		}
-		else
+		else  // 如果没有提供 memTypeFound 指针
 		{
-			throw std::runtime_error("Could not find a matching memory type");
+			throw std::runtime_error("Could not find a matching memory type");  // 抛出异常
 		}
 	}
 
 	/**
 	* Get the index of a queue family that supports the requested queue flags
 	* SRS - support VkQueueFlags parameter for requesting multiple flags vs. VkQueueFlagBits for a single flag only
+	* 获取支持请求队列标志的队列族索引
+	* SRS - 支持 VkQueueFlags 参数以请求多个标志，而 VkQueueFlagBits 仅用于单个标志
 	*
 	* @param queueFlags Queue flags to find a queue family index for
+	* @param queueFlags 要查找队列族索引的队列标志
 	*
 	* @return Index of the queue family index that matches the flags
+	* @return 匹配标志的队列族索引
 	*
 	* @throw Throws an exception if no queue family index could be found that supports the requested flags
+	* @throw 如果找不到支持请求标志的队列族索引，则抛出异常
 	*/
 	uint32_t VulkanDevice::getQueueFamilyIndex(VkQueueFlags queueFlags) const
 	{
 		// Dedicated queue for compute
 		// Try to find a queue family index that supports compute but not graphics
+		// 专用计算队列
+		// 尝试找到支持计算但不支持图形的队列族索引
 		if ((queueFlags & VK_QUEUE_COMPUTE_BIT) == queueFlags)
 		{
 			for (uint32_t i = 0; i < static_cast<uint32_t>(queueFamilyProperties.size()); i++)
@@ -141,6 +164,8 @@ namespace vks
 
 		// Dedicated queue for transfer
 		// Try to find a queue family index that supports transfer but not graphics and compute
+		// 专用传输队列
+		// 尝试找到支持传输但不支持图形和计算的队列族索引
 		if ((queueFlags & VK_QUEUE_TRANSFER_BIT) == queueFlags)
 		{
 			for (uint32_t i = 0; i < static_cast<uint32_t>(queueFamilyProperties.size()); i++)
@@ -179,133 +204,149 @@ namespace vks
 		// Desired queues need to be requested upon logical device creation
 		// Due to differing queue family configurations of Vulkan implementations this can be a bit tricky, especially if the application
 		// requests different queue types
+		// 所需的队列需要在逻辑设备创建时请求
+		// 由于 Vulkan 实现的队列族配置不同，这可能有点棘手，特别是如果应用程序请求不同的队列类型
 
-		std::vector<VkDeviceQueueCreateInfo> queueCreateInfos{};
+		std::vector<VkDeviceQueueCreateInfo> queueCreateInfos{};  // 队列创建信息列表
 
 		// Get queue family indices for the requested queue family types
 		// Note that the indices may overlap depending on the implementation
+		// 获取请求的队列族类型的队列族索引
+		// 注意：根据实现，索引可能会重叠
 
-		const float defaultQueuePriority(0.0f);
+		const float defaultQueuePriority(0.0f);  // 默认队列优先级
 
 		// Graphics queue
-		if (requestedQueueTypes & VK_QUEUE_GRAPHICS_BIT)
+		// 图形队列
+		if (requestedQueueTypes & VK_QUEUE_GRAPHICS_BIT)  // 如果请求图形队列
 		{
-			queueFamilyIndices.graphics = getQueueFamilyIndex(VK_QUEUE_GRAPHICS_BIT);
+			queueFamilyIndices.graphics = getQueueFamilyIndex(VK_QUEUE_GRAPHICS_BIT);  // 获取图形队列族索引
 			VkDeviceQueueCreateInfo queueInfo{
-				.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-				.queueFamilyIndex = queueFamilyIndices.graphics,
-				.queueCount = 1,
-				.pQueuePriorities = &defaultQueuePriority
+				.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,  // 结构体类型
+				.queueFamilyIndex = queueFamilyIndices.graphics,        // 队列族索引
+				.queueCount = 1,                                       // 队列数量
+				.pQueuePriorities = &defaultQueuePriority              // 队列优先级数组
 			};
-			queueCreateInfos.push_back(queueInfo);
+			queueCreateInfos.push_back(queueInfo);  // 添加到队列创建信息列表
 		}
-		else
+		else  // 如果未请求图形队列
 		{
-			queueFamilyIndices.graphics = 0;
+			queueFamilyIndices.graphics = 0;  // 设置为 0（无效索引）
 		}
 
 		// Dedicated compute queue
-		if (requestedQueueTypes & VK_QUEUE_COMPUTE_BIT)
+		// 专用计算队列
+		if (requestedQueueTypes & VK_QUEUE_COMPUTE_BIT)  // 如果请求计算队列
 		{
-			queueFamilyIndices.compute = getQueueFamilyIndex(VK_QUEUE_COMPUTE_BIT);
-			if (queueFamilyIndices.compute != queueFamilyIndices.graphics)
+			queueFamilyIndices.compute = getQueueFamilyIndex(VK_QUEUE_COMPUTE_BIT);  // 获取计算队列族索引
+			if (queueFamilyIndices.compute != queueFamilyIndices.graphics)  // 如果计算队列族索引与图形队列族索引不同
 			{
 				// If compute family index differs, we need an additional queue create info for the compute queue
+				// 如果计算族索引不同，我们需要为计算队列添加额外的队列创建信息
 				VkDeviceQueueCreateInfo queueInfo{
-					.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-					.queueFamilyIndex = queueFamilyIndices.compute,
-					.queueCount = 1,
-					.pQueuePriorities = &defaultQueuePriority,
+					.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,  // 结构体类型
+					.queueFamilyIndex = queueFamilyIndices.compute,        // 队列族索引
+					.queueCount = 1,                                       // 队列数量
+					.pQueuePriorities = &defaultQueuePriority,             // 队列优先级数组
 				};
-				queueCreateInfos.push_back(queueInfo);
+				queueCreateInfos.push_back(queueInfo);  // 添加到队列创建信息列表
 			}
 		}
-		else
+		else  // 如果未请求计算队列
 		{
 			// Else we use the same queue
-			queueFamilyIndices.compute = queueFamilyIndices.graphics;
+			// 否则我们使用相同的队列
+			queueFamilyIndices.compute = queueFamilyIndices.graphics;  // 使用图形队列族索引
 		}
 
 		// Dedicated transfer queue
-		if (requestedQueueTypes & VK_QUEUE_TRANSFER_BIT)
+		// 专用传输队列
+		if (requestedQueueTypes & VK_QUEUE_TRANSFER_BIT)  // 如果请求传输队列
 		{
-			queueFamilyIndices.transfer = getQueueFamilyIndex(VK_QUEUE_TRANSFER_BIT);
-			if ((queueFamilyIndices.transfer != queueFamilyIndices.graphics) && (queueFamilyIndices.transfer != queueFamilyIndices.compute))
+			queueFamilyIndices.transfer = getQueueFamilyIndex(VK_QUEUE_TRANSFER_BIT);  // 获取传输队列族索引
+			if ((queueFamilyIndices.transfer != queueFamilyIndices.graphics) && (queueFamilyIndices.transfer != queueFamilyIndices.compute))  // 如果传输队列族索引与图形和计算队列族索引都不同
 			{
 				// If transfer family index differs, we need an additional queue create info for the transfer queue
+				// 如果传输族索引不同，我们需要为传输队列添加额外的队列创建信息
 				VkDeviceQueueCreateInfo queueInfo{
-					.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-					.queueFamilyIndex = queueFamilyIndices.transfer,
-					.queueCount = 1,
-					.pQueuePriorities = &defaultQueuePriority
+					.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,  // 结构体类型
+					.queueFamilyIndex = queueFamilyIndices.transfer,        // 队列族索引
+					.queueCount = 1,                                       // 队列数量
+					.pQueuePriorities = &defaultQueuePriority              // 队列优先级数组
 				};
-				queueCreateInfos.push_back(queueInfo);
+				queueCreateInfos.push_back(queueInfo);  // 添加到队列创建信息列表
 			}
 		}
-		else
+		else  // 如果未请求传输队列
 		{
 			// Else we use the same queue
-			queueFamilyIndices.transfer = queueFamilyIndices.graphics;
+			// 否则我们使用相同的队列
+			queueFamilyIndices.transfer = queueFamilyIndices.graphics;  // 使用图形队列族索引
 		}
 
 		// Create the logical device representation
-		std::vector<const char*> deviceExtensions(enabledExtensions);
-		if (useSwapChain)
+		// 创建逻辑设备表示
+		std::vector<const char*> deviceExtensions(enabledExtensions);  // 设备扩展列表（复制传入的扩展）
+		if (useSwapChain)  // 如果使用交换链
 		{
 			// If the device will be used for presenting to a display via a swapchain we need to request the swapchain extension
-			deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+			// 如果设备将通过交换链用于显示，我们需要请求交换链扩展
+			deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);  // 添加交换链扩展名称
 		}
 
 		VkDeviceCreateInfo deviceCreateInfo{
-			.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-			.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size()),
-			.pQueueCreateInfos = queueCreateInfos.data(),
-			.pEnabledFeatures = &enabledFeatures
+			.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,              // 结构体类型
+			.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size()),  // 队列创建信息数量
+			.pQueueCreateInfos = queueCreateInfos.data(),               // 队列创建信息数组
+			.pEnabledFeatures = &enabledFeatures                         // 启用的功能
 		};
 		
 		// If a pNext(Chain) has been passed, we need to add it to the device creation info
-		VkPhysicalDeviceFeatures2 physicalDeviceFeatures2{};
-		if (pNextChain) {
-			physicalDeviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-			physicalDeviceFeatures2.features = enabledFeatures;
-			physicalDeviceFeatures2.pNext = pNextChain;
-			deviceCreateInfo.pEnabledFeatures = nullptr;
-			deviceCreateInfo.pNext = &physicalDeviceFeatures2;
+		// 如果传递了 pNext（链），我们需要将其添加到设备创建信息中
+		VkPhysicalDeviceFeatures2 physicalDeviceFeatures2{};  // 物理设备功能 2 结构
+		if (pNextChain) {  // 如果提供了 pNext 链
+			physicalDeviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;  // 结构体类型
+			physicalDeviceFeatures2.features = enabledFeatures;  // 功能
+			physicalDeviceFeatures2.pNext = pNextChain;  // 链接到扩展结构链
+			deviceCreateInfo.pEnabledFeatures = nullptr;  // 清空旧的功能指针（使用 pNext 链）
+			deviceCreateInfo.pNext = &physicalDeviceFeatures2;  // 设置 pNext 链
 		}
 
 #if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK) || defined(VK_USE_PLATFORM_METAL_EXT)) && defined(VK_KHR_portability_subset)
 		// SRS - When running on iOS/macOS with MoltenVK and VK_KHR_portability_subset is defined and supported by the device, enable the extension
-		if (extensionSupported(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME))
+		// SRS - 在 iOS/macOS 上使用 MoltenVK 运行时，如果定义了 VK_KHR_portability_subset 且设备支持，则启用该扩展
+		if (extensionSupported(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME))  // 如果支持可移植性子集扩展
 		{
-			deviceExtensions.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
+			deviceExtensions.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);  // 添加可移植性子集扩展名称
 		}
 #endif
 
-		if (deviceExtensions.size() > 0)
+		if (deviceExtensions.size() > 0)  // 如果有设备扩展
 		{
-			for (const char* enabledExtension : deviceExtensions)
+			for (const char* enabledExtension : deviceExtensions)  // 遍历所有启用的扩展
 			{
-				if (!extensionSupported(enabledExtension)) {
-					std::cerr << "Enabled device extension \"" << enabledExtension << "\" is not present at device level\n";
+				if (!extensionSupported(enabledExtension)) {  // 如果扩展不支持
+					std::cerr << "Enabled device extension \"" << enabledExtension << "\" is not present at device level\n";  // 输出警告信息
 				}
 			}
 
-			deviceCreateInfo.enabledExtensionCount = (uint32_t)deviceExtensions.size();
-			deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
+			deviceCreateInfo.enabledExtensionCount = (uint32_t)deviceExtensions.size();  // 设置启用的扩展数量
+			deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();  // 设置启用的扩展名称数组
 		}
 
-		this->enabledFeatures = enabledFeatures;
+		this->enabledFeatures = enabledFeatures;  // 保存启用的功能
 
-		VkResult result = vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &logicalDevice);
-		if (result != VK_SUCCESS) 
+		VkResult result = vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &logicalDevice);  // 创建逻辑设备
+		if (result != VK_SUCCESS)  // 如果创建失败
 		{
-			return result;
+			return result;  // 返回错误结果
 		}
 
 		// Create a default command pool for graphics command buffers
-		commandPool = createCommandPool(queueFamilyIndices.graphics);
+		// 为图形命令缓冲区创建默认命令池
+		commandPool = createCommandPool(queueFamilyIndices.graphics);  // 创建命令池
 
-		return result;
+		return result;  // 返回创建结果
 	}
 
 	/**

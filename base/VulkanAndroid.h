@@ -13,6 +13,8 @@
 
 // Vulkan needs to be loaded dynamically on android
 // While SDK 26 (and up) come with a loader, we also want to support older devices, so we manually load function pointers
+// Android 平台需要动态加载 Vulkan 函数指针
+// 虽然 SDK 26 及以上版本带有加载器，但我们也要支持旧设备，因此手动加载函数指针
 
 #pragma once
 
@@ -30,6 +32,7 @@
 #include <string>
 
 // Global reference to android application object
+// 全局 Android 应用程序对象引用
 extern android_app* androidApp;
 
 #define LOGI(...) ((void)__android_log_print(ANDROID_LOG_INFO, "vulkanExample", __VA_ARGS__))
@@ -39,6 +42,8 @@ extern android_app* androidApp;
 
 // Function pointer prototypes
 // Not complete, just the functions used in the caps viewer!
+// 函数指针原型声明
+// 不完整，仅包含示例中使用的函数
 extern PFN_vkCreateInstance vkCreateInstance;
 extern PFN_vkGetDeviceProcAddr vkGetDeviceProcAddr;
 extern PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr;
@@ -173,18 +178,27 @@ namespace vks
 	namespace android
 	{
 		/* @brief Touch control thresholds from Android NDK samples */
-		const int32_t DOUBLE_TAP_TIMEOUT = 300 * 1000000;
-		const int32_t TAP_TIMEOUT = 180 * 1000000;
-		const int32_t DOUBLE_TAP_SLOP = 100;
-		const int32_t TAP_SLOP = 8;
+		/* 触摸控制阈值，来自 Android NDK 示例 */
+		const int32_t DOUBLE_TAP_TIMEOUT = 300 * 1000000;  // 双击超时时间（纳秒）
+		const int32_t TAP_TIMEOUT = 180 * 1000000;        // 单击超时时间（纳秒）
+		const int32_t DOUBLE_TAP_SLOP = 100;              // 双击滑动阈值（像素）
+		const int32_t TAP_SLOP = 8;                        // 单击滑动阈值（像素）
 
 		/** @brief Density of the device screen (in DPI) */
+		/** 设备屏幕密度（DPI） */
 		extern int32_t screenDensity;
 
+		/** @brief 动态加载 Vulkan 库和基础函数指针 */
 		bool loadVulkanLibrary();
+		/** @brief 加载基于实例的 Vulkan 函数指针 */
+		/** @param instance Vulkan 实例句柄 */
 		void loadVulkanFunctions(VkInstance instance);
+		/** @brief 释放 Vulkan 库 */
 		void freeVulkanLibrary();
+		/** @brief 获取设备配置信息（如屏幕密度） */
 		void getDeviceConfig();
+		/** @brief 显示原生警告对话框（使用 JNI） */
+		/** @param message 要显示的消息 */
 		void showAlert(const char* message);
 	}
 }

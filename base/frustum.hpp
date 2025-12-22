@@ -12,12 +12,20 @@
 
 namespace vks
 {
+	/**
+	 * @brief 视锥剔除类
+	 * 用于计算视锥平面并进行球体剔除测试
+	 */
 	class Frustum
 	{
 	public:
-		enum side { LEFT = 0, RIGHT = 1, TOP = 2, BOTTOM = 3, BACK = 4, FRONT = 5 };
-		std::array<glm::vec4, 6> planes;
+		enum side { LEFT = 0, RIGHT = 1, TOP = 2, BOTTOM = 3, BACK = 4, FRONT = 5 };  // 视锥面枚举
+		std::array<glm::vec4, 6> planes;  // 6个视锥平面（每个平面用 vec4 表示，xyz 为法线，w 为距离）
 
+		/**
+		 * @brief 从视图投影矩阵更新视锥平面
+		 * @param matrix 视图投影矩阵（通常是 view * projection）
+		 */
 		void update(glm::mat4 matrix)
 		{
 			planes[LEFT].x = matrix[0].w + matrix[0].x;
@@ -57,10 +65,17 @@ namespace vks
 			}
 		}
 		
+		/**
+		 * @brief 检查球体是否在视锥内
+		 * @param pos 球心位置
+		 * @param radius 球体半径
+		 * @return 如果球体在视锥内返回 true，否则返回 false
+		 */
 		bool checkSphere(glm::vec3 pos, float radius)
 		{
 			for (auto i = 0; i < planes.size(); i++)
 			{
+				// 计算点到平面的距离，如果距离小于 -radius，说明球体完全在平面外
 				if ((planes[i].x * pos.x) + (planes[i].y * pos.y) + (planes[i].z * pos.z) + planes[i].w <= -radius)
 				{
 					return false;
