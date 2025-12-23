@@ -131,142 +131,231 @@ public:
 		}
 	};
 
+	/**
+	 * @brief 更新宽高比
+	 * 重新计算透视投影矩阵以适应新的宽高比
+	 * 
+	 * @param aspect 新的宽高比（宽度/高度）
+	 */
 	void updateAspectRatio(float aspect)
 	{
-		glm::mat4 currentMatrix = matrices.perspective;
+		glm::mat4 currentMatrix = matrices.perspective;  // 保存当前矩阵用于比较
+		// 使用新的宽高比重新计算透视投影矩阵
 		matrices.perspective = glm::perspective(glm::radians(fov), aspect, znear, zfar);
+		// 如果启用 Y 轴翻转，翻转投影矩阵的 Y 分量
 		if (flipY) {
 			matrices.perspective[1][1] *= -1.0f;
 		}
+		// 如果矩阵发生变化，标记为已更新
 		if (matrices.view != currentMatrix) {
 			updated = true;
 		}
 	}
 
+	/**
+	 * @brief 设置相机位置
+	 * 设置相机在世界空间中的位置并更新视图矩阵
+	 * 
+	 * @param position 新的位置向量（世界空间坐标）
+	 */
 	void setPosition(glm::vec3 position)
 	{
-		this->position = position;
-		updateViewMatrix();
+		this->position = position;  // 更新位置
+		updateViewMatrix();         // 更新视图矩阵
 	}
 
+	/**
+	 * @brief 设置相机旋转
+	 * 设置相机的欧拉角旋转并更新视图矩阵
+	 * 
+	 * @param rotation 新的旋转角度向量（欧拉角，度）
+	 */
 	void setRotation(glm::vec3 rotation)
 	{
-		this->rotation = rotation;
-		updateViewMatrix();
+		this->rotation = rotation;  // 更新旋转角度
+		updateViewMatrix();          // 更新视图矩阵
 	}
 
+	/**
+	 * @brief 旋转相机
+	 * 在现有旋转基础上增加旋转增量
+	 * 
+	 * @param delta 旋转增量向量（欧拉角，度）
+	 */
 	void rotate(glm::vec3 delta)
 	{
-		this->rotation += delta;
-		updateViewMatrix();
+		this->rotation += delta;  // 累加旋转增量
+		updateViewMatrix();        // 更新视图矩阵
 	}
 
+	/**
+	 * @brief 设置相机平移
+	 * 设置相机在世界空间中的平移位置（与 setPosition 相同）
+	 * 
+	 * @param translation 新的平移位置向量（世界空间坐标）
+	 */
 	void setTranslation(glm::vec3 translation)
 	{
-		this->position = translation;
-		updateViewMatrix();
+		this->position = translation;  // 更新位置
+		updateViewMatrix();             // 更新视图矩阵
 	};
 
+	/**
+	 * @brief 平移相机
+	 * 在现有位置基础上增加平移增量
+	 * 
+	 * @param delta 平移增量向量（世界空间坐标）
+	 */
 	void translate(glm::vec3 delta)
 	{
-		this->position += delta;
-		updateViewMatrix();
+		this->position += delta;  // 累加平移增量
+		updateViewMatrix();        // 更新视图矩阵
 	}
 
+	/**
+	 * @brief 设置旋转速度
+	 * 设置相机旋转的敏感度
+	 * 
+	 * @param rotationSpeed 新的旋转速度值
+	 */
 	void setRotationSpeed(float rotationSpeed)
 	{
 		this->rotationSpeed = rotationSpeed;
 	}
 
+	/**
+	 * @brief 设置移动速度
+	 * 设置相机移动的敏感度
+	 * 
+	 * @param movementSpeed 新的移动速度值
+	 */
 	void setMovementSpeed(float movementSpeed)
 	{
 		this->movementSpeed = movementSpeed;
 	}
 
+	/**
+	 * @brief 更新相机状态
+	 * 根据输入键和经过的时间更新相机位置和视图矩阵
+	 * 
+	 * @param deltaTime 自上次更新以来经过的时间（秒）
+	 */
 	void update(float deltaTime)
 	{
-		updated = false;
+		updated = false;  // 重置更新标志
+		// 第一人称模式：根据按键输入更新位置
 		if (type == CameraType::firstperson)
 		{
-			if (moving())
+			if (moving())  // 如果有按键被按下
 			{
+				// 计算相机前方向量（基于当前旋转角度）
+				// 使用球面坐标转换为笛卡尔坐标
 				glm::vec3 camFront;
-				camFront.x = -cos(glm::radians(rotation.x)) * sin(glm::radians(rotation.y));
-				camFront.y = sin(glm::radians(rotation.x));
-				camFront.z = cos(glm::radians(rotation.x)) * cos(glm::radians(rotation.y));
-				camFront = glm::normalize(camFront);
+				camFront.x = -cos(glm::radians(rotation.x)) * sin(glm::radians(rotation.y));  // X 分量
+				camFront.y = sin(glm::radians(rotation.x));                                    // Y 分量（俯仰角）
+				camFront.z = cos(glm::radians(rotation.x)) * cos(glm::radians(rotation.y));   // Z 分量
+				camFront = glm::normalize(camFront);  // 归一化方向向量
 
+				// 计算基于时间的移动速度
 				float moveSpeed = deltaTime * movementSpeed;
 
+				// 根据按键更新位置
 				if (keys.up)
-					position += camFront * moveSpeed;
+					position += camFront * moveSpeed;  // 向前移动
 				if (keys.down)
-					position -= camFront * moveSpeed;
+					position -= camFront * moveSpeed;   // 向后移动
 				if (keys.left)
+					// 向左移动（使用前方向量与上方向的叉积得到右方向）
 					position -= glm::normalize(glm::cross(camFront, glm::vec3(0.0f, 1.0f, 0.0f))) * moveSpeed;
 				if (keys.right)
+					// 向右移动
 					position += glm::normalize(glm::cross(camFront, glm::vec3(0.0f, 1.0f, 0.0f))) * moveSpeed;
 			}
 		}
+		// 更新视图矩阵以反映新的位置和旋转
 		updateViewMatrix();
 	};
 
-	// Update camera passing separate axis data (gamepad)
-	// Returns true if view or position has been changed
+	/**
+	 * @brief 使用游戏手柄输入更新相机
+	 * 使用分离的轴数据（游戏手柄摇杆）更新相机位置和旋转
+	 * 
+	 * @param axisLeft 左摇杆轴数据（x: 左右，y: 前后）
+	 * @param axisRight 右摇杆轴数据（x: 左右旋转，y: 上下旋转）
+	 * @param deltaTime 自上次更新以来经过的时间（秒）
+	 * 
+	 * @return 如果视图或位置已更改返回 true，否则返回 false
+	 */
 	bool updatePad(glm::vec2 axisLeft, glm::vec2 axisRight, float deltaTime)
 	{
-		bool retVal = false;
+		bool retVal = false;  // 返回值：是否发生更改
 
 		if (type == CameraType::firstperson)
 		{
-			// Use the common console thumbstick layout		
-			// Left = view, right = move
+			// 使用常见的游戏手柄摇杆布局
+			// 左摇杆 = 移动，右摇杆 = 视角
 
-			const float deadZone = 0.0015f;
-			const float range = 1.0f - deadZone;
+			const float deadZone = 0.0015f;  // 死区阈值（忽略小的摇杆输入）
+			const float range = 1.0f - deadZone;  // 有效范围
 
+			// 计算相机前方向量（基于当前旋转角度）
 			glm::vec3 camFront;
 			camFront.x = -cos(glm::radians(rotation.x)) * sin(glm::radians(rotation.y));
 			camFront.y = sin(glm::radians(rotation.x));
 			camFront.z = cos(glm::radians(rotation.x)) * cos(glm::radians(rotation.y));
 			camFront = glm::normalize(camFront);
 
-			float moveSpeed = deltaTime * movementSpeed * 2.0f;
-			float rotSpeed = deltaTime * rotationSpeed * 50.0f;
+			// 计算基于时间的移动和旋转速度
+			float moveSpeed = deltaTime * movementSpeed * 2.0f;  // 移动速度（乘以 2 以加快游戏手柄移动）
+			float rotSpeed = deltaTime * rotationSpeed * 50.0f;  // 旋转速度（乘以 50 以加快游戏手柄旋转）
 			 
-			// Move
+			// 移动：使用左摇杆
+			// Y 轴：前后移动
 			if (fabsf(axisLeft.y) > deadZone)
 			{
+				// 计算归一化的输入值（去除死区）
 				float pos = (fabsf(axisLeft.y) - deadZone) / range;
+				// 根据 Y 轴方向移动（负值向前，正值向后）
 				position -= camFront * pos * ((axisLeft.y < 0.0f) ? -1.0f : 1.0f) * moveSpeed;
 				retVal = true;
 			}
+			// X 轴：左右移动
 			if (fabsf(axisLeft.x) > deadZone)
 			{
+				// 计算归一化的输入值
 				float pos = (fabsf(axisLeft.x) - deadZone) / range;
+				// 计算右方向（前方向与上方向的叉积）
+				// 根据 X 轴方向移动（正值向右，负值向左）
 				position += glm::normalize(glm::cross(camFront, glm::vec3(0.0f, 1.0f, 0.0f))) * pos * ((axisLeft.x < 0.0f) ? -1.0f : 1.0f) * moveSpeed;
 				retVal = true;
 			}
 
-			// Rotate
+			// 旋转：使用右摇杆
+			// X 轴：左右旋转（偏航角）
 			if (fabsf(axisRight.x) > deadZone)
 			{
+				// 计算归一化的输入值
 				float pos = (fabsf(axisRight.x) - deadZone) / range;
+				// 更新偏航角（Y 轴旋转）
 				rotation.y += pos * ((axisRight.x < 0.0f) ? -1.0f : 1.0f) * rotSpeed;
 				retVal = true;
 			}
+			// Y 轴：上下旋转（俯仰角）
 			if (fabsf(axisRight.y) > deadZone)
 			{
+				// 计算归一化的输入值
 				float pos = (fabsf(axisRight.y) - deadZone) / range;
+				// 更新俯仰角（X 轴旋转，注意使用减号以匹配常见控制方案）
 				rotation.x -= pos * ((axisRight.y < 0.0f) ? -1.0f : 1.0f) * rotSpeed;
 				retVal = true;
 			}
 		}
 		else
 		{
-			// todo: move code from example base class for look-at
+			// TODO: 从示例基类移动观察模式的代码
 		}
 
+		// 如果位置或旋转发生变化，更新视图矩阵
 		if (retVal)
 		{
 			updateViewMatrix();

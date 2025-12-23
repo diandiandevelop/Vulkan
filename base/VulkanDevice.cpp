@@ -361,36 +361,56 @@ namespace vks
 	*
 	* @return VK_SUCCESS if buffer handle and memory have been created and (optionally passed) data has been copied
 	*/
+	/**
+	 * @brief 在设备上创建缓冲区（返回句柄版本）
+	 * 创建 Vulkan 缓冲区对象并分配设备内存，可选择性地将数据复制到缓冲区
+	 * 
+	 * @param usageFlags 缓冲区使用标志位掩码（如索引缓冲区、顶点缓冲区、统一缓冲区等）
+	 * @param memoryPropertyFlags 缓冲区内存属性标志（如设备本地、主机可见、一致性等）
+	 * @param size 缓冲区大小（字节）
+	 * @param buffer 输出的缓冲区句柄指针
+	 * @param memory 输出的内存句柄指针
+	 * @param data 要复制到缓冲区的数据指针（可选，如果未设置则不复制数据）
+	 * 
+	 * @return 如果缓冲区句柄和内存已创建且（可选传递的）数据已复制，返回 VK_SUCCESS
+	 */
 	VkResult VulkanDevice::createBuffer(VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceSize size, VkBuffer *buffer, VkDeviceMemory *memory, void *data)
 	{
-		// Create the buffer handle
+		// 创建缓冲区句柄
+		// 缓冲区对象定义了缓冲区的用途和大小
 		VkBufferCreateInfo bufferCreateInfo = vks::initializers::bufferCreateInfo(usageFlags, size);
-		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;  // 独占模式（单队列族使用）
 		VK_CHECK_RESULT(vkCreateBuffer(logicalDevice, &bufferCreateInfo, nullptr, buffer));
 
-		// Create the memory backing up the buffer handle
+		// 创建支持缓冲区句柄的内存
+		// 首先查询缓冲区的内存需求（对齐、内存类型位等）
 		VkMemoryRequirements memReqs;
 		VkMemoryAllocateInfo memAlloc = vks::initializers::memoryAllocateInfo();
 		vkGetBufferMemoryRequirements(logicalDevice, *buffer, &memReqs);
-		memAlloc.allocationSize = memReqs.size;
-		// Find a memory type index that fits the properties of the buffer
+		memAlloc.allocationSize = memReqs.size;  // 设置分配大小（已对齐）
+		// 查找符合缓冲区属性的内存类型索引
 		memAlloc.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, memoryPropertyFlags);
-		// If the buffer has VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT set we also need to enable the appropriate flag during allocation
+		// 如果缓冲区设置了 VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT，还需要在分配时启用相应标志
+		// 这用于缓冲区设备地址扩展，允许着色器直接访问缓冲区
 		VkMemoryAllocateFlagsInfoKHR allocFlagsInfo{};
 		if (usageFlags & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
 			allocFlagsInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO_KHR;
-			allocFlagsInfo.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR;
+			allocFlagsInfo.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR;  // 启用设备地址分配标志
 			memAlloc.pNext = &allocFlagsInfo;
 		}
+		// 分配设备内存
 		VK_CHECK_RESULT(vkAllocateMemory(logicalDevice, &memAlloc, nullptr, memory));
 			
-		// If a pointer to the buffer data has been passed, map the buffer and copy over the data
+		// 如果传递了缓冲区数据指针，映射缓冲区并复制数据
 		if (data != nullptr)
 		{
-			void *mapped;
+			void *mapped;  // 映射后的内存指针
+			// 映射内存到主机可访问的地址空间
 			VK_CHECK_RESULT(vkMapMemory(logicalDevice, *memory, 0, size, 0, &mapped));
+			// 将数据复制到映射的内存
 			memcpy(mapped, data, size);
-			// If host coherency hasn't been requested, do a manual flush to make writes visible
+			// 如果未请求主机一致性，手动刷新以使写入对设备可见
+			// 非一致性内存需要显式刷新以确保 GPU 能看到主机的写入
 			if ((memoryPropertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) == 0)
 			{
 				VkMappedMemoryRange mappedRange{
@@ -398,12 +418,15 @@ namespace vks
 					.memory = *memory,
 					.size = size
 				};
+				// 刷新映射的内存范围
 				vkFlushMappedMemoryRanges(logicalDevice, 1, &mappedRange);
 			}
+			// 取消映射内存
 			vkUnmapMemory(logicalDevice, *memory);
 		}
 
-		// Attach the memory to the buffer object
+		// 将内存附加到缓冲区对象
+		// 这会将分配的内存绑定到缓冲区，使缓冲区可以使用该内存
 		VK_CHECK_RESULT(vkBindBufferMemory(logicalDevice, *buffer, *memory, 0));
 
 		return VK_SUCCESS;
@@ -420,50 +443,74 @@ namespace vks
 	*
 	* @return VK_SUCCESS if buffer handle and memory have been created and (optionally passed) data has been copied
 	*/
+	/**
+	 * @brief 在设备上创建缓冲区（Buffer 结构体版本）
+	 * 创建 Vulkan 缓冲区对象并填充 Buffer 结构体，可选择性地将数据复制到缓冲区
+	 * 
+	 * @param usageFlags 缓冲区使用标志位掩码（如索引缓冲区、顶点缓冲区、统一缓冲区等）
+	 * @param memoryPropertyFlags 缓冲区内存属性标志（如设备本地、主机可见、一致性等）
+	 * @param buffer 输出的 Buffer 结构体指针
+	 * @param size 缓冲区大小（字节）
+	 * @param data 要复制到缓冲区的数据指针（可选，如果未设置则不复制数据）
+	 * 
+	 * @return 如果缓冲区句柄和内存已创建且（可选传递的）数据已复制，返回 VK_SUCCESS
+	 */
 	VkResult VulkanDevice::createBuffer(VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags, vks::Buffer *buffer, VkDeviceSize size, void *data)
 	{
+		// 设置设备句柄
 		buffer->device = logicalDevice;
 
-		// Create the buffer handle
+		// 创建缓冲区句柄
+		// 缓冲区对象定义了缓冲区的用途和大小
 		VkBufferCreateInfo bufferCreateInfo = vks::initializers::bufferCreateInfo(usageFlags, size);
 		VK_CHECK_RESULT(vkCreateBuffer(logicalDevice, &bufferCreateInfo, nullptr, &buffer->buffer));
 
-		// Create the memory backing up the buffer handle
+		// 创建支持缓冲区句柄的内存
+		// 首先查询缓冲区的内存需求（对齐、内存类型位等）
 		VkMemoryRequirements memReqs;
 		VkMemoryAllocateInfo memAlloc = vks::initializers::memoryAllocateInfo();
 		vkGetBufferMemoryRequirements(logicalDevice, buffer->buffer, &memReqs);
-		memAlloc.allocationSize = memReqs.size;
-		// Find a memory type index that fits the properties of the buffer
+		memAlloc.allocationSize = memReqs.size;  // 设置分配大小（已对齐）
+		// 查找符合缓冲区属性的内存类型索引
 		memAlloc.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, memoryPropertyFlags);
-		// If the buffer has VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT set we also need to enable the appropriate flag during allocation
+		// 如果缓冲区设置了 VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT，还需要在分配时启用相应标志
+		// 这用于缓冲区设备地址扩展，允许着色器直接访问缓冲区
 		VkMemoryAllocateFlagsInfoKHR allocFlagsInfo{};
 		if (usageFlags & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
 			allocFlagsInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO_KHR;
-			allocFlagsInfo.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR;
+			allocFlagsInfo.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR;  // 启用设备地址分配标志
 			memAlloc.pNext = &allocFlagsInfo;
 		}
+		// 分配设备内存
 		VK_CHECK_RESULT(vkAllocateMemory(logicalDevice, &memAlloc, nullptr, &buffer->memory));
 
-		buffer->alignment = memReqs.alignment;
-		buffer->size = size;
-		buffer->usageFlags = usageFlags;
-		buffer->memoryPropertyFlags = memoryPropertyFlags;
+		// 保存缓冲区的元数据
+		buffer->alignment = memReqs.alignment;              // 内存对齐要求
+		buffer->size = size;                                 // 缓冲区大小
+		buffer->usageFlags = usageFlags;                     // 使用标志
+		buffer->memoryPropertyFlags = memoryPropertyFlags;   // 内存属性标志
 
-		// If a pointer to the buffer data has been passed, map the buffer and copy over the data
+		// 如果传递了缓冲区数据指针，映射缓冲区并复制数据
 		if (data != nullptr)
 		{
+			// 映射内存到主机可访问的地址空间
 			VK_CHECK_RESULT(buffer->map());
+			// 将数据复制到映射的内存
 			memcpy(buffer->mapped, data, size);
+			// 如果未请求主机一致性，手动刷新以使写入对设备可见
 			if ((memoryPropertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) == 0)
 				buffer->flush();
 
+			// 取消映射内存
 			buffer->unmap();
 		}
 
-		// Initialize a default descriptor that covers the whole buffer size
+		// 初始化覆盖整个缓冲区大小的默认描述符
+		// 这用于在描述符集中引用此缓冲区
 		buffer->setupDescriptor();
 
-		// Attach the memory to the buffer object
+		// 将内存附加到缓冲区对象
+		// 这会将分配的内存绑定到缓冲区，使缓冲区可以使用该内存
 		return buffer->bind();
 	}
 
@@ -477,23 +524,41 @@ namespace vks
 	*
 	* @note Source and destination pointers must have the appropriate transfer usage flags set (TRANSFER_SRC / TRANSFER_DST)
 	*/
+	/**
+	 * @brief 复制缓冲区数据
+	 * 使用命令缓冲区将数据从源缓冲区复制到目标缓冲区
+	 * 
+	 * @param src 源缓冲区指针（要从中复制的缓冲区）
+	 * @param dst 目标缓冲区指针（要复制到的缓冲区）
+	 * @param queue 用于执行复制命令的队列（必须支持传输操作）
+	 * @param copyRegion 复制区域指针（可选，如果为 NULL 则复制整个缓冲区）
+	 * 
+	 * @note 源缓冲区和目标缓冲区必须具有相应的传输使用标志（TRANSFER_SRC / TRANSFER_DST）
+	 */
 	void VulkanDevice::copyBuffer(vks::Buffer *src, vks::Buffer *dst, VkQueue queue, VkBufferCopy *copyRegion)
 	{
+		// 确保目标缓冲区大小足够
 		assert(dst->size >= src->size);
+		// 确保源缓冲区有效
 		assert(src->buffer);
+		// 创建主命令缓冲区并立即开始记录
 		VkCommandBuffer copyCmd = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
-		VkBufferCopy bufferCopy{};
+		VkBufferCopy bufferCopy{};  // 缓冲区复制区域
+		// 如果未指定复制区域，复制整个源缓冲区
 		if (copyRegion == nullptr)
 		{
-			bufferCopy.size = src->size;
+			bufferCopy.size = src->size;  // 复制整个缓冲区
 		}
 		else
 		{
-			bufferCopy = *copyRegion;
+			bufferCopy = *copyRegion;  // 使用指定的复制区域
 		}
 
+		// 记录缓冲区复制命令
+		// 这将在 GPU 上执行复制操作，比 CPU 复制更高效
 		vkCmdCopyBuffer(copyCmd, src->buffer, dst->buffer, 1, &bufferCopy);
 
+		// 刷新命令缓冲区（结束记录、提交到队列并等待完成）
 		flushCommandBuffer(copyCmd, queue);
 	}
 

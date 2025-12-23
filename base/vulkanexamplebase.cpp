@@ -205,11 +205,16 @@ VkResult VulkanExampleBase::createInstance()
  * @brief 获取窗口标题
  * @return 窗口标题字符串（包含设备名称和 FPS）
  */
+/**
+ * @brief 获取窗口标题
+ * 生成窗口标题字符串，包含示例标题、设备名称和 FPS（如果未启用 UI）
+ * @return 窗口标题字符串
+ */
 std::string VulkanExampleBase::getWindowTitle() const
 {
 	std::string windowTitle{ title + " - " + deviceProperties.deviceName };  // 标题 + 设备名称
-	if (!settings.overlay) {
-		windowTitle += " - " + std::to_string(frameCounter) + " fps";  // 如果不显示 UI，添加 FPS
+	if (!settings.overlay) {  // 如果未启用 UI 叠加层
+		windowTitle += " - " + std::to_string(frameCounter) + " fps";  // 添加 FPS 信息
 	}
 	return windowTitle;
 }
@@ -260,6 +265,7 @@ void VulkanExampleBase::createPipelineCache()
 /**
  * @brief 准备示例
  * 初始化所有 Vulkan 资源，包括表面、命令池、交换链、命令缓冲区、同步原语、深度模板、渲染通道、管线缓存、帧缓冲区和 UI
+ * 这是示例准备阶段的核心方法，按顺序创建所有必需的 Vulkan 对象
  */
 void VulkanExampleBase::prepare()
 {
@@ -315,6 +321,10 @@ VkPipelineShaderStageCreateInfo VulkanExampleBase::loadShader(std::string fileNa
  * @brief 下一帧处理
  * 更新帧计时器、相机和 FPS 统计
  */
+/**
+ * @brief 处理下一帧
+ * 更新计时器、FPS 计数和窗口标题
+ */
 void VulkanExampleBase::nextFrame()
 {
 	auto tStart = std::chrono::high_resolution_clock::now();  // 记录开始时间
@@ -361,6 +371,16 @@ void VulkanExampleBase::nextFrame()
 /**
  * @brief 渲染循环
  * 主渲染循环，处理窗口事件和帧渲染
+ */
+/**
+ * @brief 渲染循环
+ * 主渲染循环，处理窗口消息/事件并渲染帧
+ * 不同平台有不同的实现：
+ * - Windows: 消息循环
+ * - Android: 事件循环
+ * - iOS/macOS: DisplayLink 回调
+ * - Wayland/XCB: 事件循环
+ * 如果启用基准测试，会运行基准测试并退出
  */
 void VulkanExampleBase::renderLoop()
 {
@@ -522,88 +542,96 @@ void VulkanExampleBase::renderLoop()
 		}
 	}
 #elif defined(_DIRECT2DISPLAY)
-	while (!quit)
+	// Direct2Display 平台渲染循环（直接显示，无窗口系统）
+	// Direct2Display platform rendering loop (direct display, no windowing system)
+	while (!quit)  // 主循环
 	{
-		auto tStart = std::chrono::high_resolution_clock::now();
-		render();
-		frameCounter++;
-		auto tEnd = std::chrono::high_resolution_clock::now();
-		auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
-		frameTimer = tDiff / 1000.0f;
-		camera.update(frameTimer);
+		auto tStart = std::chrono::high_resolution_clock::now();  // 获取开始时间
+		render();  // 渲染帧
+		frameCounter++;  // 增加帧计数器
+		auto tEnd = std::chrono::high_resolution_clock::now();  // 获取结束时间
+		auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();  // 计算帧时间（毫秒）
+		frameTimer = tDiff / 1000.0f;  // 转换为秒
+		camera.update(frameTimer);  // 更新相机
 		// Convert to clamped timer value
-		if (!paused)
+		// 转换为限制的计时器值
+		if (!paused)  // 如果未暂停
 		{
-			timer += timerSpeed * frameTimer;
-			if (timer > 1.0)
+			timer += timerSpeed * frameTimer;  // 更新计时器
+			if (timer > 1.0)  // 如果计时器超过 1.0
 			{
-				timer -= 1.0f;
+				timer -= 1.0f;  // 循环计时器（保持在 0.0-1.0 范围内）
 			}
 		}
-		float fpsTimer = std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();
-		if (fpsTimer > 1000.0f)
+		float fpsTimer = std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();  // 计算自上次 FPS 更新以来的时间（毫秒）
+		if (fpsTimer > 1000.0f)  // 如果超过 1 秒
 		{
-			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
-			frameCounter = 0;
-			lastTimestamp = tEnd;
+			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);  // 计算 FPS（帧数 / 时间（秒））
+			frameCounter = 0;  // 重置帧计数器
+			lastTimestamp = tEnd;  // 更新最后时间戳
 		}
-		updateOverlay();
+		updateOverlay();  // 更新 UI 叠加层
 	}
 #elif defined(VK_USE_PLATFORM_DIRECTFB_EXT)
-	while (!quit)
+	// DirectFB 平台渲染循环
+	// DirectFB platform rendering loop
+	while (!quit)  // 主循环
 	{
-		auto tStart = std::chrono::high_resolution_clock::now();
-		DFBWindowEvent event;
-		while (!event_buffer->GetEvent(event_buffer, DFB_EVENT(&event)))
+		auto tStart = std::chrono::high_resolution_clock::now();  // 获取开始时间
+		DFBWindowEvent event;  // DirectFB 窗口事件
+		while (!event_buffer->GetEvent(event_buffer, DFB_EVENT(&event)))  // 处理所有待处理事件
 		{
-			handleEvent(&event);
+			handleEvent(&event);  // 处理事件
 		}
-		render();
-		frameCounter++;
-		auto tEnd = std::chrono::high_resolution_clock::now();
-		auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
-		frameTimer = tDiff / 1000.0f;
-		camera.update(frameTimer);
+		render();  // 渲染帧
+		frameCounter++;  // 增加帧计数器
+		auto tEnd = std::chrono::high_resolution_clock::now();  // 获取结束时间
+		auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();  // 计算帧时间（毫秒）
+		frameTimer = tDiff / 1000.0f;  // 转换为秒
+		camera.update(frameTimer);  // 更新相机
 		// Convert to clamped timer value
-		if (!paused)
+		// 转换为限制的计时器值
+		if (!paused)  // 如果未暂停
 		{
-			timer += timerSpeed * frameTimer;
-			if (timer > 1.0)
+			timer += timerSpeed * frameTimer;  // 更新计时器
+			if (timer > 1.0)  // 如果计时器超过 1.0
 			{
-				timer -= 1.0f;
+				timer -= 1.0f;  // 循环计时器（保持在 0.0-1.0 范围内）
 			}
 		}
-		float fpsTimer = std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();
-		if (fpsTimer > 1000.0f)
+		float fpsTimer = std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();  // 计算自上次 FPS 更新以来的时间（毫秒）
+		if (fpsTimer > 1000.0f)  // 如果超过 1 秒
 		{
-			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
-			frameCounter = 0;
-			lastTimestamp = tEnd;
+			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);  // 计算 FPS（帧数 / 时间（秒））
+			frameCounter = 0;  // 重置帧计数器
+			lastTimestamp = tEnd;  // 更新最后时间戳
 		}
-		updateOverlay();
+		updateOverlay();  // 更新 UI 叠加层
 	}
 #elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
-	while (!quit)
+	// Wayland 平台渲染循环
+	// Wayland platform rendering loop
+	while (!quit)  // 主循环
 	{
-		auto tStart = std::chrono::high_resolution_clock::now();
+		auto tStart = std::chrono::high_resolution_clock::now();  // 获取开始时间
 
-		while (!configured)
+		while (!configured)  // 等待窗口配置完成
 		{
-			if (wl_display_dispatch(display) == -1)
+			if (wl_display_dispatch(display) == -1)  // 分发事件（如果失败则退出）
 				break;
 		}
-		while (wl_display_prepare_read(display) != 0)
+		while (wl_display_prepare_read(display) != 0)  // 准备读取事件（如果失败则分发待处理事件）
 		{
-			if (wl_display_dispatch_pending(display) == -1)
+			if (wl_display_dispatch_pending(display) == -1)  // 分发待处理事件（如果失败则退出）
 				break;
 		}
-		wl_display_flush(display);
-		wl_display_read_events(display);
-		if (wl_display_dispatch_pending(display) == -1)
+		wl_display_flush(display);  // 刷新显示连接
+		wl_display_read_events(display);  // 读取事件
+		if (wl_display_dispatch_pending(display) == -1)  // 分发待处理事件（如果失败则退出）
 			break;
 
-		render();
-		frameCounter++;
+		render();  // 渲染帧
+		frameCounter++;  // 增加帧计数器
 		auto tEnd = std::chrono::high_resolution_clock::now();
 		auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
 		frameTimer = tDiff / 1000.0f;
@@ -617,33 +645,35 @@ void VulkanExampleBase::renderLoop()
 				timer -= 1.0f;
 			}
 		}
-		float fpsTimer = std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();
-		if (fpsTimer > 1000.0f)
+		float fpsTimer = std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();  // 计算自上次 FPS 更新以来的时间（毫秒）
+		if (fpsTimer > 1000.0f)  // 如果超过 1 秒
 		{
-			if (!settings.overlay)
+			if (!settings.overlay)  // 如果未启用 UI 叠加层
 			{
-				std::string windowTitle = getWindowTitle();
-				xdg_toplevel_set_title(xdg_toplevel, windowTitle.c_str());
+				std::string windowTitle = getWindowTitle();  // 获取窗口标题
+				xdg_toplevel_set_title(xdg_toplevel, windowTitle.c_str());  // 更新窗口标题（Wayland）
 			}
-			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
-			frameCounter = 0;
-			lastTimestamp = tEnd;
+			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);  // 计算 FPS
+			frameCounter = 0;  // 重置帧计数器
+			lastTimestamp = tEnd;  // 更新最后时间戳
 		}
 		updateOverlay();
 	}
 #elif defined(VK_USE_PLATFORM_XCB_KHR)
-	xcb_flush(connection);
-	while (!quit)
+	// XCB 平台渲染循环
+	// XCB platform rendering loop
+	xcb_flush(connection);  // 刷新 XCB 连接
+	while (!quit)  // 主循环
 	{
-		auto tStart = std::chrono::high_resolution_clock::now();
-		xcb_generic_event_t *event;
-		while ((event = xcb_poll_for_event(connection)))
+		auto tStart = std::chrono::high_resolution_clock::now();  // 获取开始时间
+		xcb_generic_event_t *event;  // XCB 通用事件
+		while ((event = xcb_poll_for_event(connection)))  // 轮询所有待处理事件
 		{
-			handleEvent(event);
-			free(event);
+			handleEvent(event);  // 处理事件
+			free(event);  // 释放事件
 		}
-		render();
-		frameCounter++;
+		render();  // 渲染帧
+		frameCounter++;  // 增加帧计数器
 		auto tEnd = std::chrono::high_resolution_clock::now();
 		auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
 		frameTimer = tDiff / 1000.0f;
@@ -657,61 +687,69 @@ void VulkanExampleBase::renderLoop()
 				timer -= 1.0f;
 			}
 		}
-		float fpsTimer = std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();
-		if (fpsTimer > 1000.0f)
+		float fpsTimer = std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();  // 计算自上次 FPS 更新以来的时间（毫秒）
+		if (fpsTimer > 1000.0f)  // 如果超过 1 秒
 		{
-			if (!settings.overlay)
+			if (!settings.overlay)  // 如果未启用 UI 叠加层
 			{
-				std::string windowTitle = getWindowTitle();
-				xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
-					window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8,
-					windowTitle.size(), windowTitle.c_str());
+				std::string windowTitle = getWindowTitle();  // 获取窗口标题
+				xcb_change_property(connection, XCB_PROP_MODE_REPLACE,  // 更改属性（替换模式）
+					window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8,  // 窗口、原子（窗口名称）、类型（字符串）、格式（8位）
+					windowTitle.size(), windowTitle.c_str());  // 长度、数据（更新窗口标题，XCB）
 			}
-			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
-			frameCounter = 0;
-			lastTimestamp = tEnd;
+			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);  // 计算 FPS
+			frameCounter = 0;  // 重置帧计数器
+			lastTimestamp = tEnd;  // 更新最后时间戳
 		}
 		updateOverlay();
 	}
 #elif defined(VK_USE_PLATFORM_HEADLESS_EXT)
-	while (!quit)
+	// 无头平台渲染循环（无窗口系统）
+	// Headless platform rendering loop (no windowing system)
+	while (!quit)  // 主循环
 	{
-		auto tStart = std::chrono::high_resolution_clock::now();
-		render();
-		frameCounter++;
-		auto tEnd = std::chrono::high_resolution_clock::now();
-		auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
-		frameTimer = tDiff / 1000.0f;
-		camera.update(frameTimer);
+		auto tStart = std::chrono::high_resolution_clock::now();  // 获取开始时间
+		render();  // 渲染帧
+		frameCounter++;  // 增加帧计数器
+		auto tEnd = std::chrono::high_resolution_clock::now();  // 获取结束时间
+		auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();  // 计算帧时间（毫秒）
+		frameTimer = tDiff / 1000.0f;  // 转换为秒
+		camera.update(frameTimer);  // 更新相机
 		// Convert to clamped timer value
-		timer += timerSpeed * frameTimer;
-		if (timer > 1.0)
+		// 转换为限制的计时器值
+		timer += timerSpeed * frameTimer;  // 更新计时器
+		if (timer > 1.0)  // 如果计时器超过 1.0
 		{
-			timer -= 1.0f;
+			timer -= 1.0f;  // 循环计时器（保持在 0.0-1.0 范围内）
 		}
-		float fpsTimer = std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();
-		if (fpsTimer > 1000.0f)
+		float fpsTimer = std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();  // 计算自上次 FPS 更新以来的时间（毫秒）
+		if (fpsTimer > 1000.0f)  // 如果超过 1 秒
 		{
-			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
-			frameCounter = 0;
-			lastTimestamp = tEnd;
+			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);  // 计算 FPS
+			frameCounter = 0;  // 重置帧计数器
+			lastTimestamp = tEnd;  // 更新最后时间戳
 		}
-		updateOverlay();
+		updateOverlay();  // 更新 UI 叠加层
 	}
 #elif (defined(VK_USE_PLATFORM_MACOS_MVK) || defined(VK_USE_PLATFORM_METAL_EXT)) && defined(VK_EXAMPLE_XCODE_GENERATED)
-	[NSApp run];
+	// iOS/macOS 平台：运行 NSApplication 主循环
+	// iOS/macOS platform: Run NSApplication main loop
+	[NSApp run];  // 运行应用程序主循环（事件由 AppDelegate 和 View 处理）
 #elif defined(VK_USE_PLATFORM_SCREEN_QNX)
-	while (!quit) {
-		handleEvent();
+	// QNX Screen 平台渲染循环
+	// QNX Screen platform rendering loop
+	while (!quit) {  // 主循环
+		handleEvent();  // 处理事件
 
-		if (prepared) {
-			nextFrame();
+		if (prepared) {  // 如果已准备就绪
+			nextFrame();  // 处理下一帧
 		}
 	}
 #endif
 	// Flush device to make sure all resources can be freed
-	if (device != VK_NULL_HANDLE) {
-		vkDeviceWaitIdle(device);
+	// 刷新设备以确保所有资源都可以被释放
+	if (device != VK_NULL_HANDLE) {  // 如果设备有效
+		vkDeviceWaitIdle(device);  // 等待设备空闲（确保所有命令完成）
 	}
 }
 
@@ -764,6 +802,11 @@ void VulkanExampleBase::updateOverlay()
 
 /**
  * @brief 绘制 UI 叠加层
+ * @param commandBuffer 命令缓冲区句柄
+ */
+/**
+ * @brief 绘制 UI
+ * 将 ImGui UI 叠加层的绘制命令添加到给定的命令缓冲区
  * @param commandBuffer 命令缓冲区句柄
  */
 void VulkanExampleBase::drawUI(const VkCommandBuffer commandBuffer)
@@ -1108,19 +1151,28 @@ VulkanExampleBase::~VulkanExampleBase()
 #endif
 }
 
+/**
+ * @brief 初始化 Vulkan
+ * 设置 Vulkan 实例，启用所需扩展并连接到物理设备（GPU）
+ * 包括：创建实例、启用验证层、枚举物理设备、选择 GPU、创建逻辑设备、获取队列等
+ * @return 成功返回 true，失败返回 false
+ */
 bool VulkanExampleBase::initVulkan()
 {
 	// Instead of checking for the command line switch, validation can be forced via a define
+	// 除了检查命令行开关外，还可以通过定义强制启用验证
 #if defined(_VALIDATION)
 	this->settings.validation = true;
 #endif
 
 	// Validation messages can be stored, e.g. to be used in external tools like CI/CD
+	// 验证消息可以存储，例如用于 CI/CD 等外部工具
 	if (commandLineParser.isSet("validationlogfile")) {
 		vks::debug::log("Sample: " + title);
 	}
 
 	// Create the instance
+	// 创建实例
 	VkResult result = createInstance();
 	if (result != VK_SUCCESS) {
 		vks::tools::exitFatal("Could not create Vulkan instance : \n" + vks::tools::errorString(result), result);
@@ -1225,297 +1277,329 @@ bool VulkanExampleBase::initVulkan()
 }
 
 #if defined(_WIN32)
-// Win32 : Sets up a console window and redirects standard output to it
+/**
+ * @brief 设置控制台窗口（Windows）
+ * 分配控制台窗口并将标准输出重定向到它
+ * @param title 控制台窗口标题
+ */
 void VulkanExampleBase::setupConsole(std::string title)
 {
-	AllocConsole();
-	AttachConsole(GetCurrentProcessId());
+	AllocConsole();  // 分配控制台
+	AttachConsole(GetCurrentProcessId());  // 附加到当前进程
 	FILE *stream;
-	freopen_s(&stream, "CONIN$", "r", stdin);
-	freopen_s(&stream, "CONOUT$", "w+", stdout);
-	freopen_s(&stream, "CONOUT$", "w+", stderr);
+	freopen_s(&stream, "CONIN$", "r", stdin);  // 重定向标准输入
+	freopen_s(&stream, "CONOUT$", "w+", stdout);  // 重定向标准输出
+	freopen_s(&stream, "CONOUT$", "w+", stderr);  // 重定向标准错误
 	// Enable flags so we can color the output
-	HANDLE consoleHandle = GetStdHandle(STD_OUTPUT_HANDLE);
+	// 启用标志以便我们可以为输出着色
+	HANDLE consoleHandle = GetStdHandle(STD_OUTPUT_HANDLE);  // 获取标准输出句柄
 	DWORD dwMode = 0;
-	GetConsoleMode(consoleHandle, &dwMode);
-	dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-	SetConsoleMode(consoleHandle, dwMode);
-	SetConsoleTitle(TEXT(title.c_str()));
+	GetConsoleMode(consoleHandle, &dwMode);  // 获取控制台模式
+	dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;  // 启用虚拟终端处理
+	SetConsoleMode(consoleHandle, dwMode);  // 设置控制台模式
+	SetConsoleTitle(TEXT(title.c_str()));  // 设置控制台标题
 }
 
+/**
+ * @brief 设置 DPI 感知（Windows）
+ * 设置进程的 DPI 感知级别，以正确处理高 DPI 显示器
+ */
 void VulkanExampleBase::setupDPIAwareness()
 {
-	typedef HRESULT *(__stdcall *SetProcessDpiAwarenessFunc)(PROCESS_DPI_AWARENESS);
+	typedef HRESULT *(__stdcall *SetProcessDpiAwarenessFunc)(PROCESS_DPI_AWARENESS);  // DPI 感知函数指针类型
 
-	HMODULE shCore = LoadLibraryA("Shcore.dll");
-	if (shCore)
+	HMODULE shCore = LoadLibraryA("Shcore.dll");  // 加载 Shcore.dll 库
+	if (shCore)  // 如果库加载成功
 	{
 		SetProcessDpiAwarenessFunc setProcessDpiAwareness =
-			(SetProcessDpiAwarenessFunc)GetProcAddress(shCore, "SetProcessDpiAwareness");
+			(SetProcessDpiAwarenessFunc)GetProcAddress(shCore, "SetProcessDpiAwareness");  // 获取函数地址
 
-		if (setProcessDpiAwareness != nullptr)
+		if (setProcessDpiAwareness != nullptr)  // 如果函数地址有效
 		{
-			setProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
+			setProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);  // 设置每监视器 DPI 感知
 		}
 
-		FreeLibrary(shCore);
+		FreeLibrary(shCore);  // 释放库
 	}
 }
 
+/**
+ * @brief 设置窗口（Windows）
+ * 创建 Windows 窗口，注册窗口类，处理全屏模式
+ * @param hinstance 窗口实例句柄
+ * @param wndproc 窗口过程函数指针
+ * @return 创建的窗口句柄
+ */
 HWND VulkanExampleBase::setupWindow(HINSTANCE hinstance, WNDPROC wndproc)
 {
-	this->windowInstance = hinstance;
+	this->windowInstance = hinstance;  // 保存窗口实例
 
 	WNDCLASSEX wndClass{
-		.cbSize = sizeof(WNDCLASSEX),
-		.style = CS_HREDRAW | CS_VREDRAW,
-		.lpfnWndProc = wndproc,
-		.cbClsExtra = 0,
-		.cbWndExtra = 0,
-		.hInstance = hinstance,
-		.hIcon = LoadIcon(NULL, IDI_APPLICATION),
-		.hCursor = LoadCursor(NULL, IDC_ARROW),
-		.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH),
-		.lpszMenuName = NULL,
-		.lpszClassName = name.c_str(),
-		.hIconSm = LoadIcon(NULL, IDI_WINLOGO),
+		.cbSize = sizeof(WNDCLASSEX),  // 结构体大小
+		.style = CS_HREDRAW | CS_VREDRAW,  // 窗口样式（水平/垂直重绘）
+		.lpfnWndProc = wndproc,  // 窗口过程函数
+		.cbClsExtra = 0,  // 类额外数据
+		.cbWndExtra = 0,  // 窗口额外数据
+		.hInstance = hinstance,  // 实例句柄
+		.hIcon = LoadIcon(NULL, IDI_APPLICATION),  // 图标（应用程序图标）
+		.hCursor = LoadCursor(NULL, IDC_ARROW),  // 光标（箭头光标）
+		.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH),  // 背景画刷（黑色）
+		.lpszMenuName = NULL,  // 菜单名称（无）
+		.lpszClassName = name.c_str(),  // 类名称
+		.hIconSm = LoadIcon(NULL, IDI_WINLOGO),  // 小图标（Windows 徽标）
 	};
 
-	if (!RegisterClassEx(&wndClass))
+	if (!RegisterClassEx(&wndClass))  // 如果注册窗口类失败
 	{
 		std::cout << "Could not register window class!\n";
 		fflush(stdout);
-		exit(1);
+		exit(1);  // 退出程序
 	}
 
-	int screenWidth = GetSystemMetrics(SM_CXSCREEN);
-	int screenHeight = GetSystemMetrics(SM_CYSCREEN);
+	int screenWidth = GetSystemMetrics(SM_CXSCREEN);  // 获取屏幕宽度
+	int screenHeight = GetSystemMetrics(SM_CYSCREEN);  // 获取屏幕高度
 
-	if (settings.fullscreen)
+	if (settings.fullscreen)  // 如果全屏模式
 	{
-		if ((width != (uint32_t)screenWidth) && (height != (uint32_t)screenHeight))
+		if ((width != (uint32_t)screenWidth) && (height != (uint32_t)screenHeight))  // 如果窗口大小与屏幕大小不同
 		{
-			DEVMODE dmScreenSettings;
-			memset(&dmScreenSettings, 0, sizeof(dmScreenSettings));
-			dmScreenSettings.dmSize       = sizeof(dmScreenSettings);
-			dmScreenSettings.dmPelsWidth  = width;
-			dmScreenSettings.dmPelsHeight = height;
-			dmScreenSettings.dmBitsPerPel = 32;
-			dmScreenSettings.dmFields     = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT;
-			if (ChangeDisplaySettings(&dmScreenSettings, CDS_FULLSCREEN) != DISP_CHANGE_SUCCESSFUL)
+			DEVMODE dmScreenSettings;  // 显示模式设置
+			memset(&dmScreenSettings, 0, sizeof(dmScreenSettings));  // 清零
+			dmScreenSettings.dmSize       = sizeof(dmScreenSettings);  // 结构体大小
+			dmScreenSettings.dmPelsWidth  = width;  // 像素宽度
+			dmScreenSettings.dmPelsHeight = height;  // 像素高度
+			dmScreenSettings.dmBitsPerPel = 32;  // 每像素位数（32 位）
+			dmScreenSettings.dmFields     = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT;  // 字段标志
+			if (ChangeDisplaySettings(&dmScreenSettings, CDS_FULLSCREEN) != DISP_CHANGE_SUCCESSFUL)  // 如果更改显示设置失败
 			{
-				if (MessageBox(NULL, "Fullscreen Mode not supported!\n Switch to window mode?", "Error", MB_YESNO | MB_ICONEXCLAMATION) == IDYES)
+				if (MessageBox(NULL, "Fullscreen Mode not supported!\n Switch to window mode?", "Error", MB_YESNO | MB_ICONEXCLAMATION) == IDYES)  // 如果用户选择是
 				{
-					settings.fullscreen = false;
+					settings.fullscreen = false;  // 禁用全屏模式
 				}
-				else
+				else  // 如果用户选择否
 				{
-					return nullptr;
+					return nullptr;  // 返回空指针
 				}
 			}
-			screenWidth = width;
-			screenHeight = height;
+			screenWidth = width;  // 更新屏幕宽度
+			screenHeight = height;  // 更新屏幕高度
 		}
 
 	}
 
-	DWORD dwExStyle;
-	DWORD dwStyle;
+	DWORD dwExStyle;  // 扩展窗口样式
+	DWORD dwStyle;  // 窗口样式
 
-	if (settings.fullscreen)
+	if (settings.fullscreen)  // 如果全屏模式
 	{
-		dwExStyle = WS_EX_APPWINDOW;
-		dwStyle = WS_POPUP | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
+		dwExStyle = WS_EX_APPWINDOW;  // 扩展样式：应用窗口
+		dwStyle = WS_POPUP | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;  // 样式：弹出窗口，裁剪兄弟和子窗口
 	}
-	else
+	else  // 如果窗口模式
 	{
-		dwExStyle = WS_EX_APPWINDOW | WS_EX_WINDOWEDGE;
-		dwStyle = WS_OVERLAPPEDWINDOW | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
+		dwExStyle = WS_EX_APPWINDOW | WS_EX_WINDOWEDGE;  // 扩展样式：应用窗口 + 窗口边缘
+		dwStyle = WS_OVERLAPPEDWINDOW | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;  // 样式：重叠窗口，裁剪兄弟和子窗口
 	}
 
 	RECT windowRect{
-		.left = 0L,
-		.top = 0L,
-		.right = settings.fullscreen ? (long)screenWidth : (long)width,
-		.bottom = settings.fullscreen ? (long)screenHeight : (long)height
+		.left = 0L,  // 左边界
+		.top = 0L,  // 上边界
+		.right = settings.fullscreen ? (long)screenWidth : (long)width,  // 右边界（全屏用屏幕宽度，否则用窗口宽度）
+		.bottom = settings.fullscreen ? (long)screenHeight : (long)height  // 下边界（全屏用屏幕高度，否则用窗口高度）
 	};
-	AdjustWindowRectEx(&windowRect, dwStyle, FALSE, dwExStyle);
+	AdjustWindowRectEx(&windowRect, dwStyle, FALSE, dwExStyle);  // 调整窗口矩形（考虑边框和标题栏）
 
-	std::string windowTitle = getWindowTitle();
-	window = CreateWindowEx(0,
-		name.c_str(),
-		windowTitle.c_str(),
-		dwStyle | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
-		0,
-		0,
-		windowRect.right - windowRect.left,
-		windowRect.bottom - windowRect.top,
-		NULL,
-		NULL,
-		hinstance,
-		NULL);
+	std::string windowTitle = getWindowTitle();  // 获取窗口标题
+	window = CreateWindowEx(0,  // 扩展样式
+		name.c_str(),  // 类名称
+		windowTitle.c_str(),  // 窗口标题
+		dwStyle | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,  // 窗口样式
+		0,  // X 位置
+		0,  // Y 位置
+		windowRect.right - windowRect.left,  // 宽度
+		windowRect.bottom - windowRect.top,  // 高度
+		NULL,  // 父窗口（无）
+		NULL,  // 菜单（无）
+		hinstance,  // 实例句柄
+		NULL);  // 创建参数（无）
 
-	if (!window)
+	if (!window)  // 如果窗口创建失败
 	{
 		std::cerr << "Could not create window!\n";
 		fflush(stdout);
-		return nullptr;
+		return nullptr;  // 返回空指针
 	}
 
-	if (!settings.fullscreen)
+	if (!settings.fullscreen)  // 如果窗口模式
 	{
 		// Center on screen
-		uint32_t x = (GetSystemMetrics(SM_CXSCREEN) - windowRect.right) / 2;
-		uint32_t y = (GetSystemMetrics(SM_CYSCREEN) - windowRect.bottom) / 2;
-		SetWindowPos(window, 0, x, y, 0, 0, SWP_NOZORDER | SWP_NOSIZE);
+		// 在屏幕上居中
+		uint32_t x = (GetSystemMetrics(SM_CXSCREEN) - windowRect.right) / 2;  // 计算居中 X 位置
+		uint32_t y = (GetSystemMetrics(SM_CYSCREEN) - windowRect.bottom) / 2;  // 计算居中 Y 位置
+		SetWindowPos(window, 0, x, y, 0, 0, SWP_NOZORDER | SWP_NOSIZE);  // 设置窗口位置（不改变 Z 顺序和大小）
 	}
 
-	ShowWindow(window, SW_SHOW);
-	SetForegroundWindow(window);
-	SetFocus(window);
+	ShowWindow(window, SW_SHOW);  // 显示窗口
+	SetForegroundWindow(window);  // 设置前景窗口
+	SetFocus(window);  // 设置焦点
 
 	return window;
 }
 
+/**
+ * @brief 处理 Windows 消息
+ * 处理窗口消息，包括关闭、绘制、按键等事件
+ * @param hWnd 窗口句柄
+ * @param uMsg 消息类型
+ * @param wParam 消息参数
+ * @param lParam 消息参数
+ */
 void VulkanExampleBase::handleMessages(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	switch (uMsg)
 	{
-	case WM_CLOSE:
-		prepared = false;
-		DestroyWindow(hWnd);
-		PostQuitMessage(0);
+	case WM_CLOSE:  // 窗口关闭消息
+		prepared = false;  // 标记为未准备
+		DestroyWindow(hWnd);  // 销毁窗口
+		PostQuitMessage(0);  // 发送退出消息
 		break;
-	case WM_PAINT:
-		ValidateRect(window, NULL);
+	case WM_PAINT:  // 窗口绘制消息
+		ValidateRect(window, NULL);  // 验证窗口矩形（标记为已绘制）
 		break;
-	case WM_KEYDOWN:
-		switch (wParam)
+	case WM_KEYDOWN:  // 按键按下消息
+		switch (wParam)  // 根据按键代码处理
 		{
-		case KEY_P:
-			paused = !paused;
+		case KEY_P:  // P 键
+			paused = !paused;  // 切换暂停状态
 			break;
-		case KEY_F1:
-			ui.visible = !ui.visible;
+		case KEY_F1:  // F1 键
+			ui.visible = !ui.visible;  // 切换 UI 可见性
 			break;
-		case KEY_F2:
-			if (camera.type == Camera::CameraType::lookat) {
-				camera.type = Camera::CameraType::firstperson;
-			}else {
-				camera.type = Camera::CameraType::lookat;
+		case KEY_F2:  // F2 键
+			if (camera.type == Camera::CameraType::lookat) {  // 如果当前是观察相机
+				camera.type = Camera::CameraType::firstperson;  // 切换到第一人称相机
+			}else {  // 如果当前是第一人称相机
+				camera.type = Camera::CameraType::lookat;  // 切换到观察相机
 			}
 			break;
-		case KEY_ESCAPE:
-			PostQuitMessage(0);
+		case KEY_ESCAPE:  // ESC 键
+			PostQuitMessage(0);  // 发送退出消息
 			break;
 		}
 
-		if (camera.type == Camera::firstperson)
+		if (camera.type == Camera::firstperson)  // 如果是第一人称相机
 		{
-			switch (wParam)
+			switch (wParam)  // 根据按键代码处理相机移动
 			{
-			case KEY_W:
-				camera.keys.up = true;
+			case KEY_W:  // W 键
+				camera.keys.up = true;  // 设置相机向上移动标志
 				break;
-			case KEY_S:
-				camera.keys.down = true;
+			case KEY_S:  // S 键
+				camera.keys.down = true;  // 设置相机向下移动标志
 				break;
-			case KEY_A:
-				camera.keys.left = true;
+			case KEY_A:  // A 键
+				camera.keys.left = true;  // 设置相机向左移动标志
 				break;
-			case KEY_D:
-				camera.keys.right = true;
+			case KEY_D:  // D 键
+				camera.keys.right = true;  // 设置相机向右移动标志
 				break;
 			}
 		}
 
-		keyPressed((uint32_t)wParam);
+		keyPressed((uint32_t)wParam);  // 调用按键处理函数
 		break;
-	case WM_KEYUP:
-		if (camera.type == Camera::firstperson)
+	case WM_KEYUP:  // 按键释放消息
+		if (camera.type == Camera::firstperson)  // 如果是第一人称相机
 		{
-			switch (wParam)
+			switch (wParam)  // 根据按键代码清除相机移动标志
 			{
-			case KEY_W:
-				camera.keys.up = false;
+			case KEY_W:  // W 键
+				camera.keys.up = false;  // 清除相机向上移动标志
 				break;
-			case KEY_S:
-				camera.keys.down = false;
+			case KEY_S:  // S 键
+				camera.keys.down = false;  // 清除相机向下移动标志
 				break;
-			case KEY_A:
-				camera.keys.left = false;
+			case KEY_A:  // A 键
+				camera.keys.left = false;  // 清除相机向左移动标志
 				break;
-			case KEY_D:
-				camera.keys.right = false;
+			case KEY_D:  // D 键
+				camera.keys.right = false;  // 清除相机向右移动标志
 				break;
 			}
 		}
 		break;
-	case WM_LBUTTONDOWN:
-		mouseState.position = glm::vec2((float)LOWORD(lParam), (float)HIWORD(lParam));
-		mouseState.buttons.left = true;
+	case WM_LBUTTONDOWN:  // 鼠标左键按下消息
+		mouseState.position = glm::vec2((float)LOWORD(lParam), (float)HIWORD(lParam));  // 更新鼠标位置（从 lParam 提取坐标）
+		mouseState.buttons.left = true;  // 设置左键按下标志
 		break;
-	case WM_RBUTTONDOWN:
-		mouseState.position = glm::vec2((float)LOWORD(lParam), (float)HIWORD(lParam));
-		mouseState.buttons.right = true;
+	case WM_RBUTTONDOWN:  // 鼠标右键按下消息
+		mouseState.position = glm::vec2((float)LOWORD(lParam), (float)HIWORD(lParam));  // 更新鼠标位置
+		mouseState.buttons.right = true;  // 设置右键按下标志
 		break;
-	case WM_MBUTTONDOWN:
-		mouseState.position = glm::vec2((float)LOWORD(lParam), (float)HIWORD(lParam));
-		mouseState.buttons.middle = true;
+	case WM_MBUTTONDOWN:  // 鼠标中键按下消息
+		mouseState.position = glm::vec2((float)LOWORD(lParam), (float)HIWORD(lParam));  // 更新鼠标位置
+		mouseState.buttons.middle = true;  // 设置中键按下标志
 		break;
-	case WM_LBUTTONUP:
-		mouseState.buttons.left = false;
+	case WM_LBUTTONUP:  // 鼠标左键释放消息
+		mouseState.buttons.left = false;  // 清除左键按下标志
 		break;
-	case WM_RBUTTONUP:
-		mouseState.buttons.right = false;
+	case WM_RBUTTONUP:  // 鼠标右键释放消息
+		mouseState.buttons.right = false;  // 清除右键按下标志
 		break;
-	case WM_MBUTTONUP:
-		mouseState.buttons.middle = false;
+	case WM_MBUTTONUP:  // 鼠标中键释放消息
+		mouseState.buttons.middle = false;  // 清除中键按下标志
 		break;
-	case WM_MOUSEWHEEL:
+	case WM_MOUSEWHEEL:  // 鼠标滚轮消息
 	{
-		short wheelDelta = GET_WHEEL_DELTA_WPARAM(wParam);
-		camera.translate(glm::vec3(0.0f, 0.0f, (float)wheelDelta * 0.005f));
+		short wheelDelta = GET_WHEEL_DELTA_WPARAM(wParam);  // 获取滚轮增量
+		camera.translate(glm::vec3(0.0f, 0.0f, (float)wheelDelta * 0.005f));  // 相机前后移动
 		break;
 	}
-	case WM_MOUSEMOVE:
+	case WM_MOUSEMOVE:  // 鼠标移动消息
 	{
-		handleMouseMove(LOWORD(lParam), HIWORD(lParam));
+		handleMouseMove(LOWORD(lParam), HIWORD(lParam));  // 处理鼠标移动（从 lParam 提取坐标）
 		break;
 	}
-	case WM_SIZE:
-		if ((prepared) && (wParam != SIZE_MINIMIZED))
+	case WM_SIZE:  // 窗口大小改变消息
+		if ((prepared) && (wParam != SIZE_MINIMIZED))  // 如果已准备且窗口未最小化
 		{
-			if ((resizing) || ((wParam == SIZE_MAXIMIZED) || (wParam == SIZE_RESTORED)))
+			if ((resizing) || ((wParam == SIZE_MAXIMIZED) || (wParam == SIZE_RESTORED)))  // 如果正在调整大小或最大化/恢复
 			{
-				destWidth = LOWORD(lParam);
-				destHeight = HIWORD(lParam);
-				windowResize();
+				destWidth = LOWORD(lParam);  // 设置目标宽度（从 lParam 提取）
+				destHeight = HIWORD(lParam);  // 设置目标高度（从 lParam 提取）
+				windowResize();  // 调整窗口大小
 			}
 		}
 		break;
-	case WM_GETMINMAXINFO:
+	case WM_GETMINMAXINFO:  // 获取窗口最小/最大信息消息
 	{
-		LPMINMAXINFO minMaxInfo = (LPMINMAXINFO)lParam;
-		minMaxInfo->ptMinTrackSize.x = 64;
-		minMaxInfo->ptMinTrackSize.y = 64;
+		LPMINMAXINFO minMaxInfo = (LPMINMAXINFO)lParam;  // 获取最小/最大信息指针
+		minMaxInfo->ptMinTrackSize.x = 64;  // 设置最小跟踪宽度
+		minMaxInfo->ptMinTrackSize.y = 64;  // 设置最小跟踪高度
 		break;
 	}
-	case WM_ENTERSIZEMOVE:
-		resizing = true;
+	case WM_ENTERSIZEMOVE:  // 开始调整大小/移动消息
+		resizing = true;  // 设置调整大小标志
 		break;
-	case WM_EXITSIZEMOVE:
-		resizing = false;
+	case WM_EXITSIZEMOVE:  // 结束调整大小/移动消息
+		resizing = false;  // 清除调整大小标志
 		break;
 	}
 
 	OnHandleMessage(hWnd, uMsg, wParam, lParam);
 }
 #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
+/**
+ * @brief 处理 Android 应用输入事件
+ * 处理触摸屏和游戏手柄输入事件
+ * @param app Android 应用指针
+ * @param event 输入事件指针
+ * @return 如果事件已处理返回 1，否则返回 0
+ */
 int32_t VulkanExampleBase::handleAppInput(struct android_app* app, AInputEvent* event)
 {
-	VulkanExampleBase* vulkanExample = reinterpret_cast<VulkanExampleBase*>(app->userData);
-	if (AInputEvent_getType(event) == AINPUT_EVENT_TYPE_MOTION)
+	VulkanExampleBase* vulkanExample = reinterpret_cast<VulkanExampleBase*>(app->userData);  // 获取示例实例
+	if (AInputEvent_getType(event) == AINPUT_EVENT_TYPE_MOTION)  // 如果是运动事件（触摸或游戏手柄）
 	{
 		int32_t eventSource = AInputEvent_getSource(event);
 		switch (eventSource) {
@@ -1532,69 +1616,71 @@ int32_t VulkanExampleBase::handleAppInput(struct android_app* app, AInputEvent* 
 			case AINPUT_SOURCE_TOUCHSCREEN: {
 				int32_t action = AMotionEvent_getAction(event);
 
-				switch (action) {
-					case AMOTION_EVENT_ACTION_UP: {
-						vulkanExample->lastTapTime = AMotionEvent_getEventTime(event);
-						vulkanExample->touchPos.x = AMotionEvent_getX(event, 0);
-						vulkanExample->touchPos.y = AMotionEvent_getY(event, 0);
-						vulkanExample->touchTimer = 0.0;
-						vulkanExample->touchDown = false;
-						vulkanExample->camera.keys.up = false;
+				switch (action) {  // 根据动作类型处理
+					case AMOTION_EVENT_ACTION_UP: {  // 触摸抬起动作
+						vulkanExample->lastTapTime = AMotionEvent_getEventTime(event);  // 记录最后点击时间
+						vulkanExample->touchPos.x = AMotionEvent_getX(event, 0);  // 更新触摸位置 X
+						vulkanExample->touchPos.y = AMotionEvent_getY(event, 0);  // 更新触摸位置 Y
+						vulkanExample->touchTimer = 0.0;  // 重置触摸计时器
+						vulkanExample->touchDown = false;  // 清除触摸按下标志
+						vulkanExample->camera.keys.up = false;  // 清除相机向上移动标志
 
 						// Detect single tap
-						int64_t eventTime = AMotionEvent_getEventTime(event);
-						int64_t downTime = AMotionEvent_getDownTime(event);
-						if (eventTime - downTime <= vks::android::TAP_TIMEOUT) {
-							float deadZone = (160.f / vks::android::screenDensity) * vks::android::TAP_SLOP * vks::android::TAP_SLOP;
-							float x = AMotionEvent_getX(event, 0) - vulkanExample->touchPos.x;
-							float y = AMotionEvent_getY(event, 0) - vulkanExample->touchPos.y;
-							if ((x * x + y * y) < deadZone) {
-								vulkanExample->mouseState.buttons.left = true;
+						// 检测单击
+						int64_t eventTime = AMotionEvent_getEventTime(event);  // 获取事件时间
+						int64_t downTime = AMotionEvent_getDownTime(event);  // 获取按下时间
+						if (eventTime - downTime <= vks::android::TAP_TIMEOUT) {  // 如果按下到抬起的时间在单击超时内
+							float deadZone = (160.f / vks::android::screenDensity) * vks::android::TAP_SLOP * vks::android::TAP_SLOP;  // 计算死区（基于屏幕密度）
+							float x = AMotionEvent_getX(event, 0) - vulkanExample->touchPos.x;  // 计算 X 方向移动距离
+							float y = AMotionEvent_getY(event, 0) - vulkanExample->touchPos.y;  // 计算 Y 方向移动距离
+							if ((x * x + y * y) < deadZone) {  // 如果移动距离在死区内（视为单击）
+								vulkanExample->mouseState.buttons.left = true;  // 设置鼠标左键按下标志
 							}
 						};
 
-						return 1;
+						return 1;  // 返回已处理
 						break;
 					}
-					case AMOTION_EVENT_ACTION_DOWN: {
+					case AMOTION_EVENT_ACTION_DOWN: {  // 触摸按下动作
 						// Detect double tap
-						int64_t eventTime = AMotionEvent_getEventTime(event);
-						if (eventTime - vulkanExample->lastTapTime <= vks::android::DOUBLE_TAP_TIMEOUT) {
-							float deadZone = (160.f / vks::android::screenDensity) * vks::android::DOUBLE_TAP_SLOP * vks::android::DOUBLE_TAP_SLOP;
-							float x = AMotionEvent_getX(event, 0) - vulkanExample->touchPos.x;
-							float y = AMotionEvent_getY(event, 0) - vulkanExample->touchPos.y;
-							if ((x * x + y * y) < deadZone) {
-								vulkanExample->keyPressed(TOUCH_DOUBLE_TAP);
-								vulkanExample->touchDown = false;
+						// 检测双击
+						int64_t eventTime = AMotionEvent_getEventTime(event);  // 获取事件时间
+						if (eventTime - vulkanExample->lastTapTime <= vks::android::DOUBLE_TAP_TIMEOUT) {  // 如果距离上次点击的时间在双击超时内
+							float deadZone = (160.f / vks::android::screenDensity) * vks::android::DOUBLE_TAP_SLOP * vks::android::DOUBLE_TAP_SLOP;  // 计算死区（基于屏幕密度）
+							float x = AMotionEvent_getX(event, 0) - vulkanExample->touchPos.x;  // 计算 X 方向移动距离
+							float y = AMotionEvent_getY(event, 0) - vulkanExample->touchPos.y;  // 计算 Y 方向移动距离
+							if ((x * x + y * y) < deadZone) {  // 如果移动距离在死区内（视为双击）
+								vulkanExample->keyPressed(TOUCH_DOUBLE_TAP);  // 触发双击事件
+								vulkanExample->touchDown = false;  // 清除触摸按下标志
 							}
 						}
-						else {
-							vulkanExample->touchDown = true;
+						else {  // 如果距离上次点击的时间超过双击超时
+							vulkanExample->touchDown = true;  // 设置触摸按下标志
 						}
-						vulkanExample->touchPos.x = AMotionEvent_getX(event, 0);
-						vulkanExample->touchPos.y = AMotionEvent_getY(event, 0);
-						vulkanExample->mouseState.position.x = AMotionEvent_getX(event, 0);
-						vulkanExample->mouseState.position.y = AMotionEvent_getY(event, 0);
+						vulkanExample->touchPos.x = AMotionEvent_getX(event, 0);  // 更新触摸位置 X
+						vulkanExample->touchPos.y = AMotionEvent_getY(event, 0);  // 更新触摸位置 Y
+						vulkanExample->mouseState.position.x = AMotionEvent_getX(event, 0);  // 更新鼠标位置 X
+						vulkanExample->mouseState.position.y = AMotionEvent_getY(event, 0);  // 更新鼠标位置 Y
 						break;
 					}
-					case AMOTION_EVENT_ACTION_MOVE: {
-						bool handled = false;
-						if (vulkanExample->settings.overlay) {
-							ImGuiIO& io = ImGui::GetIO();
-							handled = io.WantCaptureMouse && vulkanExample->ui.visible;
+					case AMOTION_EVENT_ACTION_MOVE: {  // 触摸移动动作
+						bool handled = false;  // 是否已处理
+						if (vulkanExample->settings.overlay) {  // 如果启用覆盖层
+							ImGuiIO& io = ImGui::GetIO();  // 获取 ImGui IO
+							handled = io.WantCaptureMouse && vulkanExample->ui.visible;  // 如果 ImGui 想要捕获鼠标且 UI 可见
 						}
-						if (!handled) {
-							int32_t eventX = AMotionEvent_getX(event, 0);
-							int32_t eventY = AMotionEvent_getY(event, 0);
+						if (!handled) {  // 如果未处理
+							int32_t eventX = AMotionEvent_getX(event, 0);  // 获取事件 X 坐标
+							int32_t eventY = AMotionEvent_getY(event, 0);  // 获取事件 Y 坐标
 
-							float deltaX = (float)(vulkanExample->touchPos.y - eventY) * vulkanExample->camera.rotationSpeed * 0.5f;
-							float deltaY = (float)(vulkanExample->touchPos.x - eventX) * vulkanExample->camera.rotationSpeed * 0.5f;
+							float deltaX = (float)(vulkanExample->touchPos.y - eventY) * vulkanExample->camera.rotationSpeed * 0.5f;  // 计算 X 方向旋转增量（垂直移动控制俯仰）
+							float deltaY = (float)(vulkanExample->touchPos.x - eventX) * vulkanExample->camera.rotationSpeed * 0.5f;  // 计算 Y 方向旋转增量（水平移动控制偏航）
 
-							vulkanExample->camera.rotate(glm::vec3(deltaX, 0.0f, 0.0f));
-							vulkanExample->camera.rotate(glm::vec3(0.0f, -deltaY, 0.0f));
+							vulkanExample->camera.rotate(glm::vec3(deltaX, 0.0f, 0.0f));  // 旋转相机（俯仰）
+							vulkanExample->camera.rotate(glm::vec3(0.0f, -deltaY, 0.0f));  // 旋转相机（偏航，负值反转方向）
 
-							vulkanExample->touchPos.x = eventX;
-							vulkanExample->touchPos.y = eventY;
+							vulkanExample->touchPos.x = eventX;  // 更新触摸位置 X
+							vulkanExample->touchPos.y = eventY;  // 更新触摸位置 Y
 						}
 						break;
 					}
@@ -1653,13 +1739,19 @@ int32_t VulkanExampleBase::handleAppInput(struct android_app* app, AInputEvent* 
 	return 0;
 }
 
+/**
+ * @brief 处理 Android 应用命令
+ * 处理 Android 应用生命周期命令，如窗口初始化、焦点变化等
+ * @param app Android 应用指针
+ * @param cmd 应用命令
+ */
 void VulkanExampleBase::handleAppCommand(android_app * app, int32_t cmd)
 {
-	assert(app->userData != nullptr);
-	VulkanExampleBase* vulkanExample = reinterpret_cast<VulkanExampleBase*>(app->userData);
-	switch (cmd)
+	assert(app->userData != nullptr);  // 断言用户数据不为空
+	VulkanExampleBase* vulkanExample = reinterpret_cast<VulkanExampleBase*>(app->userData);  // 获取示例实例
+	switch (cmd)  // 根据命令类型处理
 	{
-	case APP_CMD_SAVE_STATE:
+	case APP_CMD_SAVE_STATE:  // 保存状态命令
 		LOGD("APP_CMD_SAVE_STATE");
 		/*
 		vulkanExample->app->savedState = malloc(sizeof(struct saved_state));
@@ -1720,68 +1812,107 @@ void VulkanExampleBase::handleAppCommand(android_app * app, int32_t cmd)
 //     - vsync command line option (-vs) on macOS now works like other platforms (using VK_PRESENT_MODE_FIFO_KHR)
 dispatch_group_t concurrentGroup;
 
+/**
+ * @brief 应用程序启动完成回调（iOS/macOS）
+ * 应用程序启动完成后调用，创建并发渲染队列
+ * @param aNotification 通知对象
+ */
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification
 {
 	[NSApp activateIgnoringOtherApps:YES];		// SRS - Make sure app window launches in front of Xcode window
+	// 确保应用窗口在 Xcode 窗口前面启动
 
-	concurrentGroup = dispatch_group_create();
-	dispatch_queue_t concurrentQueue = dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0);
-	dispatch_group_async(concurrentGroup, concurrentQueue, ^{
+	concurrentGroup = dispatch_group_create();  // 创建调度组
+	dispatch_queue_t concurrentQueue = dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0);  // 获取全局并发队列（用户交互优先级）
+	dispatch_group_async(concurrentGroup, concurrentQueue, ^{  // 在并发队列中异步执行
 
-		while (!vulkanExample->quit) {
-			vulkanExample->displayLinkOutputCb();
+		while (!vulkanExample->quit) {  // 主渲染循环
+			vulkanExample->displayLinkOutputCb();  // 调用显示链接输出回调
 		}
 	});
 
 	// SRS - When benchmarking, set up termination notification on main thread when concurrent queue completes
-	if (vulkanExample->benchmark.active) {
-		dispatch_queue_t notifyQueue = dispatch_get_main_queue();
-		dispatch_group_notify(concurrentGroup, notifyQueue, ^{ [NSApp terminate:nil]; });
+	// 基准测试时，在并发队列完成时在主线程上设置终止通知
+	if (vulkanExample->benchmark.active) {  // 如果基准测试激活
+		dispatch_queue_t notifyQueue = dispatch_get_main_queue();  // 获取主队列
+		dispatch_group_notify(concurrentGroup, notifyQueue, ^{ [NSApp terminate:nil]; });  // 在队列完成时终止应用
 	}
 }
 
+/**
+ * @brief 应用程序应在最后一个窗口关闭后终止（iOS/macOS）
+ * 当最后一个窗口关闭时，应用程序是否应该终止
+ * @param sender 发送者（NSApplication）
+ * @return YES 表示应该终止
+ */
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender
 {
-	return YES;
+	return YES;  // 最后一个窗口关闭后终止
 }
 
-// SRS - Tell rendering loop to quit, then wait for concurrent queue to terminate before deleting vulkanExample
+/**
+ * @brief 应用程序即将终止回调（iOS/macOS）
+ * 应用程序即将终止时调用，停止渲染循环并清理资源
+ * SRS - 告诉渲染循环退出，然后等待并发队列终止，再删除 vulkanExample
+ * @param aNotification 通知对象
+ */
 - (void)applicationWillTerminate:(NSNotification *)aNotification
 {
-	vulkanExample->quit = YES;
-	dispatch_group_wait(concurrentGroup, DISPATCH_TIME_FOREVER);
-	vkDeviceWaitIdle(vulkanExample->vulkanDevice->logicalDevice);
-	delete(vulkanExample);
+	vulkanExample->quit = YES;  // 设置退出标志
+	dispatch_group_wait(concurrentGroup, DISPATCH_TIME_FOREVER);  // 等待并发队列完成
+	vkDeviceWaitIdle(vulkanExample->vulkanDevice->logicalDevice);  // 等待设备空闲
+	delete(vulkanExample);  // 删除示例实例
 }
 
 @end
 
+/**
+ * @brief 获取资源路径（iOS/macOS）
+ * 返回资源文件（assets）的路径
+ * @return 资源路径字符串
+ */
 const std::string getAssetPath() {
 #if defined(VK_EXAMPLE_ASSETS_DIR)
-	return VK_EXAMPLE_ASSETS_DIR;
+	return VK_EXAMPLE_ASSETS_DIR;  // 使用预定义的资源目录
 #else
-    return [NSBundle.mainBundle.resourcePath stringByAppendingString: @"/../../assets/"].UTF8String;
+    return [NSBundle.mainBundle.resourcePath stringByAppendingString: @"/../../assets/"].UTF8String;  // 从 NSBundle 获取资源路径
 #endif
 }
 
+/**
+ * @brief 获取着色器基础路径（iOS/macOS）
+ * 返回着色器文件的基础路径
+ * @return 着色器基础路径字符串
+ */
 const std::string getShaderBasePath() {
 #if defined(VK_EXAMPLE_SHADERS_DIR)
-	return VK_EXAMPLE_SHADERS_DIR;
+	return VK_EXAMPLE_SHADERS_DIR;  // 使用预定义的着色器目录
 #else
-	return [NSBundle.mainBundle.resourcePath stringByAppendingString: @"/../../shaders/"].UTF8String;
+	return [NSBundle.mainBundle.resourcePath stringByAppendingString: @"/../../shaders/"].UTF8String;  // 从 NSBundle 获取着色器路径
 #endif
 }
 
+/**
+ * @brief DisplayLink 输出回调（iOS/macOS）
+ * Core Video DisplayLink 的回调函数，用于同步渲染
+ * @param displayLink DisplayLink 引用
+ * @param inNow 当前时间戳
+ * @param inOutputTime 输出时间戳
+ * @param flagsIn 输入标志
+ * @param flagsOut 输出标志（未使用）
+ * @param displayLinkContext 用户数据（VulkanExampleBase 实例指针）
+ * @return 成功返回 kCVReturnSuccess
+ */
 static CVReturn displayLinkOutputCallback(CVDisplayLinkRef displayLink, const CVTimeStamp *inNow,
 	const CVTimeStamp *inOutputTime, CVOptionFlags flagsIn, CVOptionFlags *flagsOut,
 	void *displayLinkContext)
 {
-	@autoreleasepool
+	@autoreleasepool  // Objective-C 自动释放池
 	{
-		auto vulkanExample = static_cast<VulkanExampleBase*>(displayLinkContext);
-			vulkanExample->displayLinkOutputCb();
+		auto vulkanExample = static_cast<VulkanExampleBase*>(displayLinkContext);  // 获取示例实例指针
+			vulkanExample->displayLinkOutputCb();  // 调用显示链接输出回调
 	}
-	return kCVReturnSuccess;
+	return kCVReturnSuccess;  // 返回成功
 }
 
 @interface View : NSView<NSWindowDelegate>
@@ -1797,541 +1928,772 @@ static CVReturn displayLinkOutputCallback(CVDisplayLinkRef displayLink, const CV
 	CVDisplayLinkRef displayLink;
 }
 
+/**
+ * @brief 初始化视图（iOS/macOS）
+ * 创建视图并设置 Metal 层
+ * @param frameRect 视图框架矩形
+ * @return 初始化的视图实例
+ */
 - (instancetype)initWithFrame:(NSRect)frameRect
 {
-	self = [super initWithFrame:(frameRect)];
-	if (self)
+	self = [super initWithFrame:(frameRect)];  // 调用父类初始化
+	if (self)  // 如果初始化成功
 	{
-		self.wantsLayer = YES;
-		self.layer = [CAMetalLayer layer];
+		self.wantsLayer = YES;  // 启用图层支持
+		self.layer = [CAMetalLayer layer];  // 创建 Metal 层
 	}
-	return self;
+	return self;  // 返回实例
 }
 
+/**
+ * @brief 视图移动到窗口时回调（iOS/macOS）
+ * 视图添加到窗口时调用，创建并启动 DisplayLink
+ */
 - (void)viewDidMoveToWindow
 {
-	CVDisplayLinkCreateWithActiveCGDisplays(&displayLink);
+	CVDisplayLinkCreateWithActiveCGDisplays(&displayLink);  // 创建 DisplayLink（使用活动显示器）
 	// SRS - Disable displayLink vsync rendering in favour of max frame rate concurrent rendering
 	//     - vsync command line option (-vs) on macOS now works like other platforms (using VK_PRESENT_MODE_FIFO_KHR)
-	//CVDisplayLinkSetOutputCallback(displayLink, &displayLinkOutputCallback, vulkanExample);
-	CVDisplayLinkStart(displayLink);
+	// SRS - 禁用 displayLink 垂直同步渲染，以支持最大帧率并发渲染
+	//     - macOS 上的垂直同步命令行选项（-vs）现在与其他平台一样工作（使用 VK_PRESENT_MODE_FIFO_KHR）
+	//CVDisplayLinkSetOutputCallback(displayLink, &displayLinkOutputCallback, vulkanExample);  // 已禁用：设置输出回调
+	CVDisplayLinkStart(displayLink);  // 启动 DisplayLink
 }
 
+/**
+ * @brief 是否接受第一响应者（iOS/macOS）
+ * 视图是否应该成为第一响应者（接收键盘事件）
+ * @return YES 表示接受
+ */
 - (BOOL)acceptsFirstResponder
 {
-	return YES;
+	return YES;  // 接受第一响应者
 }
 
+/**
+ * @brief 是否接受首次鼠标事件（iOS/macOS）
+ * 视图是否应该接受首次鼠标事件（无需先点击窗口）
+ * @param event 鼠标事件
+ * @return YES 表示接受
+ */
 - (BOOL)acceptsFirstMouse:(NSEvent *)event
 {
-	return YES;
+	return YES;  // 接受首次鼠标事件
 }
 
+/**
+ * @brief 按键按下事件（iOS/macOS）
+ * 处理键盘按键按下事件
+ * @param event 键盘事件
+ */
 - (void)keyDown:(NSEvent*)event
 {
-	switch (event.keyCode)
+	switch (event.keyCode)  // 根据按键代码处理
 	{
-		case KEY_P:
-			vulkanExample->paused = !vulkanExample->paused;
+		case KEY_P:  // P 键
+			vulkanExample->paused = !vulkanExample->paused;  // 切换暂停状态
 			break;
 		case KEY_1:										// support keyboards with no function keys
-		case KEY_F1:
-			vulkanExample->ui.visible = !vulkanExample->ui.visible;
+		// 支持没有功能键的键盘（使用数字键 1 作为 F1 的替代）
+		case KEY_F1:  // F1 键
+			vulkanExample->ui.visible = !vulkanExample->ui.visible;  // 切换 UI 可见性
 			break;
 		case KEY_DELETE:								// support keyboards with no escape key
-		case KEY_ESCAPE:
-			[NSApp terminate:nil];
+		// 支持没有 ESC 键的键盘（使用 Delete 键作为 ESC 的替代）
+		case KEY_ESCAPE:  // ESC 键
+			[NSApp terminate:nil];  // 终止应用程序
 			break;
-		case KEY_W:
-			vulkanExample->camera.keys.up = true;
+		case KEY_W:  // W 键
+			vulkanExample->camera.keys.up = true;  // 设置相机向上移动标志
 			break;
-		case KEY_S:
-			vulkanExample->camera.keys.down = true;
+		case KEY_S:  // S 键
+			vulkanExample->camera.keys.down = true;  // 设置相机向下移动标志
 			break;
-		case KEY_A:
-			vulkanExample->camera.keys.left = true;
+		case KEY_A:  // A 键
+			vulkanExample->camera.keys.left = true;  // 设置相机向左移动标志
 			break;
-		case KEY_D:
-			vulkanExample->camera.keys.right = true;
+		case KEY_D:  // D 键
+			vulkanExample->camera.keys.right = true;  // 设置相机向右移动标志
 			break;
 		default:
 			vulkanExample->keyPressed(event.keyCode);	// handle example-specific key press events
+			// 处理示例特定的按键事件
 			break;
 	}
 }
 
+/**
+ * @brief 按键释放事件（iOS/macOS）
+ * 处理键盘按键释放事件
+ * @param event 键盘事件
+ */
 - (void)keyUp:(NSEvent*)event
 {
-	switch (event.keyCode)
+	switch (event.keyCode)  // 根据按键代码处理
 	{
-		case KEY_W:
-			vulkanExample->camera.keys.up = false;
+		case KEY_W:  // W 键
+			vulkanExample->camera.keys.up = false;  // 清除相机向上移动标志
 			break;
-		case KEY_S:
-			vulkanExample->camera.keys.down = false;
+		case KEY_S:  // S 键
+			vulkanExample->camera.keys.down = false;  // 清除相机向下移动标志
 			break;
-		case KEY_A:
-			vulkanExample->camera.keys.left = false;
+		case KEY_A:  // A 键
+			vulkanExample->camera.keys.left = false;  // 清除相机向左移动标志
 			break;
-		case KEY_D:
-			vulkanExample->camera.keys.right = false;
+		case KEY_D:  // D 键
+			vulkanExample->camera.keys.right = false;  // 清除相机向右移动标志
 			break;
 		default:
 			break;
 	}
 }
 
+/**
+ * @brief 获取鼠标本地坐标（iOS/macOS）
+ * 将窗口坐标转换为视图本地坐标，并翻转 Y 轴（从窗口坐标系转换为 OpenGL/Vulkan 坐标系）
+ * @param event 鼠标事件
+ * @return 本地坐标点
+ */
 - (NSPoint)getMouseLocalPoint:(NSEvent*)event
 {
-	NSPoint location = [event locationInWindow];
-	NSPoint point = [self convertPoint:location fromView:nil];
-	point.y = self.frame.size.height - point.y;
-	return point;
+	NSPoint location = [event locationInWindow];  // 获取窗口中的位置
+	NSPoint point = [self convertPoint:location fromView:nil];  // 转换为视图本地坐标
+	point.y = self.frame.size.height - point.y;  // 翻转 Y 轴（窗口坐标系 Y 向下，OpenGL/Vulkan Y 向上）
+	return point;  // 返回本地坐标
 }
 
+/**
+ * @brief 鼠标按下事件（iOS/macOS）
+ * 处理鼠标左键按下事件
+ * @param event 鼠标事件
+ */
 - (void)mouseDown:(NSEvent *)event
 {
-	auto point = [self getMouseLocalPoint:event];
-	vulkanExample->mouseState.position = glm::vec2(point.x, point.y);
-	vulkanExample->mouseState.buttons.left = true;
+	auto point = [self getMouseLocalPoint:event];  // 获取本地坐标
+	vulkanExample->mouseState.position = glm::vec2(point.x, point.y);  // 更新鼠标位置
+	vulkanExample->mouseState.buttons.left = true;  // 设置左键按下标志
 }
 
+/**
+ * @brief 鼠标释放事件（iOS/macOS）
+ * 处理鼠标左键释放事件
+ * @param event 鼠标事件
+ */
 - (void)mouseUp:(NSEvent *)event
 {
-	vulkanExample->mouseState.buttons.left = false;
+	vulkanExample->mouseState.buttons.left = false;  // 清除左键按下标志
 }
 
+/**
+ * @brief 鼠标右键按下事件（iOS/macOS）
+ * 处理鼠标右键按下事件
+ * @param event 鼠标事件
+ */
 - (void)rightMouseDown:(NSEvent *)event
 {
-	auto point = [self getMouseLocalPoint:event];
-	vulkanExample->mouseState.position = glm::vec2(point.x, point.y);
-	vulkanExample->mouseState.buttons.right = true;
+	auto point = [self getMouseLocalPoint:event];  // 获取本地坐标
+	vulkanExample->mouseState.position = glm::vec2(point.x, point.y);  // 更新鼠标位置
+	vulkanExample->mouseState.buttons.right = true;  // 设置右键按下标志
 }
 
+/**
+ * @brief 鼠标右键释放事件（iOS/macOS）
+ * 处理鼠标右键释放事件
+ * @param event 鼠标事件
+ */
 - (void)rightMouseUp:(NSEvent *)event
 {
-	vulkanExample->mouseState.buttons.right = false;
+	vulkanExample->mouseState.buttons.right = false;  // 清除右键按下标志
 }
 
+/**
+ * @brief 鼠标中键按下事件（iOS/macOS）
+ * 处理鼠标中键按下事件
+ * @param event 鼠标事件
+ */
 - (void)otherMouseDown:(NSEvent *)event
 {
-	auto point = [self getMouseLocalPoint:event];
-	vulkanExample->mouseState.position = glm::vec2(point.x, point.y);
-	vulkanExample->mouseState.buttons.middle = true;
+	auto point = [self getMouseLocalPoint:event];  // 获取本地坐标
+	vulkanExample->mouseState.position = glm::vec2(point.x, point.y);  // 更新鼠标位置
+	vulkanExample->mouseState.buttons.middle = true;  // 设置中键按下标志
 }
 
+/**
+ * @brief 鼠标中键释放事件（iOS/macOS）
+ * 处理鼠标中键释放事件
+ * @param event 鼠标事件
+ */
 - (void)otherMouseUp:(NSEvent *)event
 {
-	vulkanExample->mouseState.buttons.middle = false;
+	vulkanExample->mouseState.buttons.middle = false;  // 清除中键按下标志
 }
 
+/**
+ * @brief 鼠标拖拽事件（iOS/macOS）
+ * 处理鼠标左键拖拽事件
+ * @param event 鼠标事件
+ */
 - (void)mouseDragged:(NSEvent *)event
 {
-	auto point = [self getMouseLocalPoint:event];
-	vulkanExample->mouseDragged(point.x, point.y);
+	auto point = [self getMouseLocalPoint:event];  // 获取本地坐标
+	vulkanExample->mouseDragged(point.x, point.y);  // 调用鼠标拖拽处理
 }
 
+/**
+ * @brief 鼠标右键拖拽事件（iOS/macOS）
+ * 处理鼠标右键拖拽事件
+ * @param event 鼠标事件
+ */
 - (void)rightMouseDragged:(NSEvent *)event
 {
-	auto point = [self getMouseLocalPoint:event];
-	vulkanExample->mouseDragged(point.x, point.y);
+	auto point = [self getMouseLocalPoint:event];  // 获取本地坐标
+	vulkanExample->mouseDragged(point.x, point.y);  // 调用鼠标拖拽处理
 }
 
+/**
+ * @brief 鼠标中键拖拽事件（iOS/macOS）
+ * 处理鼠标中键拖拽事件
+ * @param event 鼠标事件
+ */
 - (void)otherMouseDragged:(NSEvent *)event
 {
-	auto point = [self getMouseLocalPoint:event];
-	vulkanExample->mouseDragged(point.x, point.y);
+	auto point = [self getMouseLocalPoint:event];  // 获取本地坐标
+	vulkanExample->mouseDragged(point.x, point.y);  // 调用鼠标拖拽处理
 }
 
+/**
+ * @brief 鼠标移动事件（iOS/macOS）
+ * 处理鼠标移动事件（无按键按下）
+ * @param event 鼠标事件
+ */
 - (void)mouseMoved:(NSEvent *)event
 {
-	auto point = [self getMouseLocalPoint:event];
-	vulkanExample->mouseDragged(point.x, point.y);
+	auto point = [self getMouseLocalPoint:event];  // 获取本地坐标
+	vulkanExample->mouseDragged(point.x, point.y);  // 调用鼠标拖拽处理
 }
 
+/**
+ * @brief 滚轮事件（iOS/macOS）
+ * 处理鼠标滚轮事件，用于相机前后移动
+ * @param event 滚轮事件
+ */
 - (void)scrollWheel:(NSEvent *)event
 {
-	short wheelDelta = [event deltaY];
+	short wheelDelta = [event deltaY];  // 获取 Y 方向滚轮增量
 	vulkanExample->camera.translate(glm::vec3(0.0f, 0.0f,
-		-(float)wheelDelta * 0.05f * vulkanExample->camera.movementSpeed));
+		-(float)wheelDelta * 0.05f * vulkanExample->camera.movementSpeed));  // 相机前后移动（负值表示向前）
 }
 
+/**
+ * @brief 窗口即将进入全屏回调（iOS/macOS）
+ * 窗口即将进入全屏模式时调用
+ * @param notification 通知对象
+ */
 - (void)windowWillEnterFullScreen:(NSNotification *)notification
 {
-	vulkanExample->settings.fullscreen = true;
+	vulkanExample->settings.fullscreen = true;  // 设置全屏标志
 }
 
+/**
+ * @brief 窗口即将退出全屏回调（iOS/macOS）
+ * 窗口即将退出全屏模式时调用
+ * @param notification 通知对象
+ */
 - (void)windowWillExitFullScreen:(NSNotification *)notification
 {
-	vulkanExample->settings.fullscreen = false;
+	vulkanExample->settings.fullscreen = false;  // 清除全屏标志
 }
 
+/**
+ * @brief 窗口是否应该关闭（iOS/macOS）
+ * 窗口关闭请求时调用
+ * @param sender 窗口对象
+ * @return YES 表示允许关闭
+ */
 - (BOOL)windowShouldClose:(NSWindow *)sender
 {
-	return TRUE;
+	return TRUE;  // 允许关闭
 }
 
+/**
+ * @brief 窗口即将关闭回调（iOS/macOS）
+ * 窗口即将关闭时调用，停止并释放 DisplayLink
+ * @param notification 通知对象
+ */
 - (void)windowWillClose:(NSNotification *)notification
 {
-	CVDisplayLinkStop(displayLink);
-	CVDisplayLinkRelease(displayLink);
+	CVDisplayLinkStop(displayLink);  // 停止 DisplayLink
+	CVDisplayLinkRelease(displayLink);  // 释放 DisplayLink
 }
 
 @end
 #endif
 
+/**
+ * @brief 设置窗口（iOS/macOS）
+ * 创建 macOS/iOS 窗口和视图，设置 Metal 层（如果使用 Metal）
+ * @param view 视图指针（如果已存在）
+ * @return 视图指针
+ */
 void* VulkanExampleBase::setupWindow(void* view)
 {
 #if defined(VK_EXAMPLE_XCODE_GENERATED)
-	NSApp = [NSApplication sharedApplication];
-	[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
-	auto nsAppDelegate = [AppDelegate new];
-	nsAppDelegate->vulkanExample = this;
-	[NSApp setDelegate:nsAppDelegate];
+	NSApp = [NSApplication sharedApplication];  // 获取共享应用程序实例
+	[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];  // 设置激活策略为常规应用
+	auto nsAppDelegate = [AppDelegate new];  // 创建应用委托
+	nsAppDelegate->vulkanExample = this;  // 设置示例实例指针
+	[NSApp setDelegate:nsAppDelegate];  // 设置应用委托
 
-	const auto kContentRect = NSMakeRect(0.0f, 0.0f, width, height);
-	const auto kWindowStyle = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable;
+	const auto kContentRect = NSMakeRect(0.0f, 0.0f, width, height);  // 创建内容矩形
+	const auto kWindowStyle = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable;  // 窗口样式：标题栏、可关闭、可调整大小
 
-	auto window = [[NSWindow alloc] initWithContentRect:kContentRect
-											  styleMask:kWindowStyle
-												backing:NSBackingStoreBuffered
-												  defer:NO];
-	[window setTitle:@(title.c_str())];
-	[window setAcceptsMouseMovedEvents:YES];
-	[window center];
-	[window makeKeyAndOrderFront:nil];
-	if (settings.fullscreen) {
-		[window toggleFullScreen:nil];
+	auto window = [[NSWindow alloc] initWithContentRect:kContentRect  // 创建窗口
+											  styleMask:kWindowStyle  // 窗口样式
+												backing:NSBackingStoreBuffered  // 后备存储：缓冲
+												  defer:NO];  // 不延迟创建
+	[window setTitle:@(title.c_str())];  // 设置窗口标题
+	[window setAcceptsMouseMovedEvents:YES];  // 接受鼠标移动事件
+	[window center];  // 窗口居中
+	[window makeKeyAndOrderFront:nil];  // 使窗口成为关键窗口并显示在前台
+	if (settings.fullscreen) {  // 如果全屏模式
+		[window toggleFullScreen:nil];  // 切换全屏
 	}
 
-	auto nsView = [[View alloc] initWithFrame:kContentRect];
-	nsView->vulkanExample = this;
-	[window setDelegate:nsView];
-	[window setContentView:nsView];
-	this->view = (__bridge void*)nsView;
+	auto nsView = [[View alloc] initWithFrame:kContentRect];  // 创建视图
+	nsView->vulkanExample = this;  // 设置示例实例指针
+	[window setDelegate:nsView];  // 设置窗口委托
+	[window setContentView:nsView];  // 设置窗口内容视图
+	this->view = (__bridge void*)nsView;  // 保存视图指针（桥接转换）
 #if defined(VK_USE_PLATFORM_METAL_EXT)
-	this->metalLayer = (CAMetalLayer*)nsView.layer;
+	this->metalLayer = (CAMetalLayer*)nsView.layer;  // 获取 Metal 层
 #endif
 #else
-	this->view = view;
+	this->view = view;  // 使用提供的视图
 #if defined(VK_USE_PLATFORM_METAL_EXT)
-	this->metalLayer = (CAMetalLayer*)layer;
+	this->metalLayer = (CAMetalLayer*)layer;  // 使用提供的 Metal 层
 #endif
 #endif
-	return view;
+	return view;  // 返回视图指针
 }
 
+/**
+ * @brief DisplayLink 输出回调（iOS/macOS）
+ * 由 DisplayLink 定时器调用，用于渲染帧
+ * 如果启用基准测试，会运行基准测试并退出
+ */
 void VulkanExampleBase::displayLinkOutputCb()
 {
 #if defined(VK_EXAMPLE_XCODE_GENERATED)
-	if (benchmark.active) {
-		benchmark.run([=] { render(); }, vulkanDevice->properties);
-		if (benchmark.filename != "") {
-			benchmark.saveResults();
+	if (benchmark.active) {  // 如果基准测试激活
+		benchmark.run([=] { render(); }, vulkanDevice->properties);  // 运行基准测试
+		if (benchmark.filename != "") {  // 如果指定了文件名
+			benchmark.saveResults();  // 保存基准测试结果
 		}
 		quit = true;	// SRS - quit NSApp rendering loop when benchmarking complete
-		return;
+		// 基准测试完成后退出 NSApp 渲染循环
+		return;  // 返回
 	}
 #endif
 
-	if (prepared)
-		nextFrame();
+	if (prepared)  // 如果已准备
+		nextFrame();  // 处理下一帧
 }
 
+/**
+ * @brief 鼠标拖拽处理（iOS/macOS）
+ * @param x 鼠标 X 坐标
+ * @param y 鼠标 Y 坐标
+ */
 void VulkanExampleBase::mouseDragged(float x, float y)
 {
-	handleMouseMove(static_cast<uint32_t>(x), static_cast<uint32_t>(y));
+	handleMouseMove(static_cast<uint32_t>(x), static_cast<uint32_t>(y));  // 调用鼠标移动处理
 }
 
+/**
+ * @brief 窗口即将调整大小（iOS/macOS）
+ * @param x 新宽度
+ * @param y 新高度
+ */
 void VulkanExampleBase::windowWillResize(float x, float y)
 {
-	resizing = true;
-	if (prepared)
+	resizing = true;  // 标记为正在调整大小
+	if (prepared)  // 如果已准备
 	{
-		destWidth = x;
-		destHeight = y;
-		windowResize();
+		destWidth = x;  // 设置目标宽度
+		destHeight = y;  // 设置目标高度
+		windowResize();  // 调整窗口大小
 	}
 }
 
+/**
+ * @brief 窗口已调整大小（iOS/macOS）
+ * 窗口调整大小完成后的回调
+ */
 void VulkanExampleBase::windowDidResize()
 {
 	resizing = false;
 }
 #elif defined(_DIRECT2DISPLAY)
 #elif defined(VK_USE_PLATFORM_DIRECTFB_EXT)
+/**
+ * @brief 设置窗口（DirectFB）
+ * 初始化 DirectFB，创建显示层、窗口和表面
+ * 处理全屏模式和窗口居中
+ * @return DirectFB 表面指针
+ */
 IDirectFBSurface *VulkanExampleBase::setupWindow()
 {
-	DFBResult ret;
-	int posx = 0, posy = 0;
+	DFBResult ret;  // DirectFB 返回码
+	int posx = 0, posy = 0;  // 窗口位置（用于居中）
 
-	ret = DirectFBInit(NULL, NULL);
-	if (ret)
+	ret = DirectFBInit(NULL, NULL);  // 初始化 DirectFB
+	if (ret)  // 如果初始化失败
 	{
 		std::cout << "Could not initialize DirectFB!\n";
 		fflush(stdout);
-		exit(1);
+		exit(1);  // 退出
 	}
 
-	ret = DirectFBCreate(&dfb);
-	if (ret)
+	ret = DirectFBCreate(&dfb);  // 创建 DirectFB 主接口
+	if (ret)  // 如果创建失败
 	{
 		std::cout << "Could not create main interface of DirectFB!\n";
 		fflush(stdout);
-		exit(1);
+		exit(1);  // 退出
 	}
 
-	ret = dfb->GetDisplayLayer(dfb, DLID_PRIMARY, &layer);
-	if (ret)
+	ret = dfb->GetDisplayLayer(dfb, DLID_PRIMARY, &layer);  // 获取主显示层
+	if (ret)  // 如果获取失败
 	{
 		std::cout << "Could not get DirectFB display layer interface!\n";
 		fflush(stdout);
-		exit(1);
+		exit(1);  // 退出
 	}
 
-	DFBDisplayLayerConfig layer_config;
-	ret = layer->GetConfiguration(layer, &layer_config);
-	if (ret)
+	DFBDisplayLayerConfig layer_config;  // 显示层配置
+	ret = layer->GetConfiguration(layer, &layer_config);  // 获取显示层配置
+	if (ret)  // 如果获取失败
 	{
 		std::cout << "Could not get DirectFB display layer configuration!\n";
 		fflush(stdout);
-		exit(1);
+		exit(1);  // 退出
 	}
 
-	if (settings.fullscreen)
+	if (settings.fullscreen)  // 如果全屏模式
 	{
-		width = layer_config.width;
-		height = layer_config.height;
+		width = layer_config.width;  // 使用显示层宽度
+		height = layer_config.height;  // 使用显示层高度
 	}
-	else
+	else  // 如果窗口模式
 	{
-		if (layer_config.width > width)
-			posx = (layer_config.width - width) / 2;
-		if (layer_config.height > height)
-			posy = (layer_config.height - height) / 2;
+		if (layer_config.width > width)  // 如果显示层宽度大于窗口宽度
+			posx = (layer_config.width - width) / 2;  // 计算居中 X 位置
+		if (layer_config.height > height)  // 如果显示层高度大于窗口高度
+			posy = (layer_config.height - height) / 2;  // 计算居中 Y 位置
 	}
 
-	DFBWindowDescription desc;
-	desc.flags = (DFBWindowDescriptionFlags)(DWDESC_WIDTH | DWDESC_HEIGHT | DWDESC_POSX | DWDESC_POSY);
-	desc.width = width;
-	desc.height = height;
-	desc.posx = posx;
-	desc.posy = posy;
-	ret = layer->CreateWindow(layer, &desc, &window);
-	if (ret)
+	DFBWindowDescription desc;  // 窗口描述
+	desc.flags = (DFBWindowDescriptionFlags)(DWDESC_WIDTH | DWDESC_HEIGHT | DWDESC_POSX | DWDESC_POSY);  // 窗口标志
+	desc.width = width;  // 窗口宽度
+	desc.height = height;  // 窗口高度
+	desc.posx = posx;  // 窗口 X 位置
+	desc.posy = posy;  // 窗口 Y 位置
+	ret = layer->CreateWindow(layer, &desc, &window);  // 创建窗口
+	if (ret)  // 如果创建失败
 	{
 		std::cout << "Could not create DirectFB window interface!\n";
 		fflush(stdout);
-		exit(1);
+		exit(1);  // 退出
 	}
 
-	ret = window->GetSurface(window, &surface);
-	if (ret)
+	ret = window->GetSurface(window, &surface);  // 获取窗口表面
+	if (ret)  // 如果获取失败
 	{
 		std::cout << "Could not get DirectFB surface interface!\n";
 		fflush(stdout);
-		exit(1);
+		exit(1);  // 退出
 	}
 
-	ret = window->CreateEventBuffer(window, &event_buffer);
-	if (ret)
+	ret = window->CreateEventBuffer(window, &event_buffer);  // 创建事件缓冲区
+	if (ret)  // 如果创建失败
 	{
 		std::cout << "Could not create DirectFB event buffer interface!\n";
 		fflush(stdout);
-		exit(1);
+		exit(1);  // 退出
 	}
 
-	ret = window->SetOpacity(window, 0xFF);
-	if (ret)
+	ret = window->SetOpacity(window, 0xFF);  // 设置窗口不透明度（完全不透明）
+	if (ret)  // 如果设置失败
 	{
 		std::cout << "Could not set DirectFB window opacity!\n";
 		fflush(stdout);
-		exit(1);
+		exit(1);  // 退出
 	}
 
-	return surface;
+	return surface;  // 返回表面指针
 }
 
+/**
+ * @brief 处理 DirectFB 窗口事件
+ * 处理 DirectFB 窗口事件，包括关闭、鼠标移动、按键等
+ * @param event DirectFB 窗口事件指针
+ */
 void VulkanExampleBase::handleEvent(const DFBWindowEvent *event)
 {
-	switch (event->type)
+	switch (event->type)  // 根据事件类型处理
 	{
-	case DWET_CLOSE:
+	case DWET_CLOSE:  // 关闭事件
 		quit = true;
 		break;
-	case DWET_MOTION:
-		handleMouseMove(event->x, event->y);
+	case DWET_MOTION:  // 鼠标移动事件
+		handleMouseMove(event->x, event->y);  // 处理鼠标移动
 		break;
-	case DWET_BUTTONDOWN:
-		switch (event->button)
+	case DWET_BUTTONDOWN:  // 鼠标按键按下事件
+		switch (event->button)  // 根据按键类型处理
 		{
-		case DIBI_LEFT:
-			mouseState.buttons.left = true;
+		case DIBI_LEFT:  // 左键
+			mouseState.buttons.left = true;  // 设置左键按下标志
 			break;
-		case DIBI_MIDDLE:
-			mouseState.buttons.middle = true;
+		case DIBI_MIDDLE:  // 中键
+			mouseState.buttons.middle = true;  // 设置中键按下标志
 			break;
-		case DIBI_RIGHT:
-			mouseState.buttons.right = true;
+		case DIBI_RIGHT:  // 右键
+			mouseState.buttons.right = true;  // 设置右键按下标志
 			break;
 		default:
 			break;
 		}
 		break;
-	case DWET_BUTTONUP:
-		switch (event->button)
+	case DWET_BUTTONUP:  // 鼠标按键释放事件
+		switch (event->button)  // 根据按键类型处理
 		{
-		case DIBI_LEFT:
-			mouseState.buttons.left = false;
+		case DIBI_LEFT:  // 左键
+			mouseState.buttons.left = false;  // 清除左键按下标志
 			break;
-		case DIBI_MIDDLE:
-			mouseState.buttons.middle = false;
+		case DIBI_MIDDLE:  // 中键
+			mouseState.buttons.middle = false;  // 清除中键按下标志
 			break;
-		case DIBI_RIGHT:
-			mouseState.buttons.right = false;
+		case DIBI_RIGHT:  // 右键
+			mouseState.buttons.right = false;  // 清除右键按下标志
 			break;
 		default:
 			break;
 		}
 		break;
-	case DWET_KEYDOWN:
-		switch (event->key_symbol)
+	case DWET_KEYDOWN:  // 按键按下事件
+		switch (event->key_symbol)  // 根据按键符号处理
 		{
-			case KEY_W:
-				camera.keys.up = true;
+			case KEY_W:  // W 键
+				camera.keys.up = true;  // 设置相机向上移动标志
 				break;
-			case KEY_S:
-				camera.keys.down = true;
+			case KEY_S:  // S 键
+				camera.keys.down = true;  // 设置相机向下移动标志
 				break;
-			case KEY_A:
-				camera.keys.left = true;
+			case KEY_A:  // A 键
+				camera.keys.left = true;  // 设置相机向左移动标志
 				break;
-			case KEY_D:
-				camera.keys.right = true;
+			case KEY_D:  // D 键
+				camera.keys.right = true;  // 设置相机向右移动标志
 				break;
-			case KEY_P:
-				paused = !paused;
+			case KEY_P:  // P 键
+				paused = !paused;  // 切换暂停状态
 				break;
-			case KEY_F1:
-				ui.visible = !ui.visible;
+			case KEY_F1:  // F1 键
+				ui.visible = !ui.visible;  // 切换 UI 可见性
 			default:
 				break;
 		}
 		break;
-	case DWET_KEYUP:
-		switch (event->key_symbol)
+	case DWET_KEYUP:  // 按键释放事件
+		switch (event->key_symbol)  // 根据按键符号处理
 		{
-			case KEY_W:
-				camera.keys.up = false;
+			case KEY_W:  // W 键
+				camera.keys.up = false;  // 清除相机向上移动标志
 				break;
-			case KEY_S:
-				camera.keys.down = false;
+			case KEY_S:  // S 键
+				camera.keys.down = false;  // 清除相机向下移动标志
 				break;
-			case KEY_A:
-				camera.keys.left = false;
+			case KEY_A:  // A 键
+				camera.keys.left = false;  // 清除相机向左移动标志
 				break;
-			case KEY_D:
-				camera.keys.right = false;
+			case KEY_D:  // D 键
+				camera.keys.right = false;  // 清除相机向右移动标志
 				break;
-			case KEY_ESCAPE:
-				quit = true;
+			case KEY_ESCAPE:  // ESC 键
+				quit = true;  // 设置退出标志
 				break;
 			default:
 				break;
 		}
-		keyPressed(event->key_symbol);
+		keyPressed(event->key_symbol);  // 调用按键处理函数
 		break;
-	case DWET_SIZE:
-		destWidth = event->w;
-		destHeight = event->h;
-		windowResize();
+	case DWET_SIZE:  // 窗口大小改变事件
+		destWidth = event->w;  // 设置目标宽度
+		destHeight = event->h;  // 设置目标高度
+		windowResize();  // 调整窗口大小
 		break;
 	default:
 		break;
 	}
 }
 #elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
+/**
+ * @brief Wayland 注册表全局对象回调（静态）
+ * 将回调转发到实例方法
+ */
 /*static*/void VulkanExampleBase::registryGlobalCb(void *data, wl_registry *registry, uint32_t name, const char *interface, uint32_t version)
 {
-	VulkanExampleBase *self = reinterpret_cast<VulkanExampleBase *>(data);
-	self->registryGlobal(registry, name, interface, version);
+	VulkanExampleBase *self = reinterpret_cast<VulkanExampleBase *>(data);  // 获取实例指针
+	self->registryGlobal(registry, name, interface, version);  // 调用实例方法
 }
 
+/**
+ * @brief Wayland 输入设备能力变化回调（静态）
+ * 将回调转发到实例方法
+ */
 /*static*/void VulkanExampleBase::seatCapabilitiesCb(void *data, wl_seat *seat, uint32_t caps)
 {
-	VulkanExampleBase *self = reinterpret_cast<VulkanExampleBase *>(data);
-	self->seatCapabilities(seat, caps);
+	VulkanExampleBase *self = reinterpret_cast<VulkanExampleBase *>(data);  // 获取实例指针
+	self->seatCapabilities(seat, caps);  // 调用实例方法
 }
 
+/**
+ * @brief Wayland 指针进入表面回调（静态）
+ * 指针进入表面时调用（当前为空实现）
+ */
 /*static*/void VulkanExampleBase::pointerEnterCb(void *data, wl_pointer *pointer, uint32_t serial, wl_surface *surface, wl_fixed_t sx, wl_fixed_t sy)
 {
 }
 
+/**
+ * @brief Wayland 指针离开表面回调（静态）
+ * 指针离开表面时调用（当前为空实现）
+ */
 /*static*/void VulkanExampleBase::pointerLeaveCb(void *data, wl_pointer *pointer, uint32_t serial, wl_surface *surface)
 {
 }
 
+/**
+ * @brief Wayland 指针移动回调（静态）
+ * 将回调转发到实例方法
+ */
 /*static*/void VulkanExampleBase::pointerMotionCb(void *data, wl_pointer *pointer, uint32_t time, wl_fixed_t sx, wl_fixed_t sy)
 {
-	VulkanExampleBase *self = reinterpret_cast<VulkanExampleBase *>(data);
-	self->pointerMotion(pointer, time, sx, sy);
+	VulkanExampleBase *self = reinterpret_cast<VulkanExampleBase *>(data);  // 获取实例指针
+	self->pointerMotion(pointer, time, sx, sy);  // 调用实例方法
 }
+/**
+ * @brief 处理 Wayland 指针移动事件
+ * @param pointer Wayland 指针对象
+ * @param time 时间戳
+ * @param sx X 坐标（固定点格式）
+ * @param sy Y 坐标（固定点格式）
+ */
 void VulkanExampleBase::pointerMotion(wl_pointer *pointer, uint32_t time, wl_fixed_t sx, wl_fixed_t sy)
 {
-	handleMouseMove(wl_fixed_to_int(sx), wl_fixed_to_int(sy));
+	handleMouseMove(wl_fixed_to_int(sx), wl_fixed_to_int(sy));  // 将固定点坐标转换为整数并处理鼠标移动
 }
 
+/**
+ * @brief Wayland 指针按键回调（静态）
+ * 将回调转发到实例方法
+ */
 /*static*/void VulkanExampleBase::pointerButtonCb(void *data, wl_pointer *pointer, uint32_t serial, uint32_t time, uint32_t button, uint32_t state)
 {
-	VulkanExampleBase *self = reinterpret_cast<VulkanExampleBase *>(data);
-	self->pointerButton(pointer, serial, time, button, state);
+	VulkanExampleBase *self = reinterpret_cast<VulkanExampleBase *>(data);  // 获取实例指针
+	self->pointerButton(pointer, serial, time, button, state);  // 调用实例方法
 }
 
+/**
+ * @brief 处理 Wayland 指针按键事件
+ * @param pointer Wayland 指针对象
+ * @param serial 序列号
+ * @param time 时间戳
+ * @param button 按键代码
+ * @param state 按键状态（按下/释放）
+ */
 void VulkanExampleBase::pointerButton(struct wl_pointer *pointer, uint32_t serial, uint32_t time, uint32_t button, uint32_t state)
 {
-	switch (button)
+	switch (button)  // 根据按键代码处理
 	{
-	case BTN_LEFT:
-		mouseState.buttons.left = !!state;
+	case BTN_LEFT:  // 左键
+		mouseState.buttons.left = !!state;  // 设置左键状态
 		break;
-	case BTN_MIDDLE:
-		mouseState.buttons.middle = !!state;
+	case BTN_MIDDLE:  // 中键
+		mouseState.buttons.middle = !!state;  // 设置中键状态
 		break;
-	case BTN_RIGHT:
-		mouseState.buttons.right = !!state;
+	case BTN_RIGHT:  // 右键
+		mouseState.buttons.right = !!state;  // 设置右键状态
 		break;
 	default:
 		break;
 	}
 }
 
+/**
+ * @brief Wayland 指针滚轮回调（静态）
+ * 将回调转发到实例方法
+ */
 /*static*/void VulkanExampleBase::pointerAxisCb(void *data, wl_pointer *pointer, uint32_t time, uint32_t axis, wl_fixed_t value)
 {
-	VulkanExampleBase *self = reinterpret_cast<VulkanExampleBase *>(data);
-	self->pointerAxis(pointer, time, axis, value);
+	VulkanExampleBase *self = reinterpret_cast<VulkanExampleBase *>(data);  // 获取实例指针
+	self->pointerAxis(pointer, time, axis, value);  // 调用实例方法
 }
 
+/**
+ * @brief 处理 Wayland 指针滚轮事件
+ * @param pointer Wayland 指针对象
+ * @param time 时间戳
+ * @param axis 滚轮轴（X/Y）
+ * @param value 滚轮值（固定点格式）
+ */
 void VulkanExampleBase::pointerAxis(wl_pointer *pointer, uint32_t time, uint32_t axis, wl_fixed_t value)
 {
-	double d = wl_fixed_to_double(value);
-	switch (axis)
+	double d = wl_fixed_to_double(value);  // 将固定点值转换为双精度浮点数
+	switch (axis)  // 根据轴处理
 	{
-	case REL_X:
-		camera.translate(glm::vec3(0.0f, 0.0f, d * 0.005f));
+	case REL_X:  // X 轴（滚轮）
+		camera.translate(glm::vec3(0.0f, 0.0f, d * 0.005f));  // 相机前后移动
 		break;
 	default:
 		break;
 	}
 }
 
+/**
+ * @brief Wayland 键盘键映射回调（静态）
+ * 键盘键映射变化时调用（当前为空实现）
+ * @param data 用户数据
+ * @param keyboard Wayland 键盘对象
+ * @param format 键映射格式
+ * @param fd 文件描述符
+ * @param size 键映射大小
+ */
 /*static*/void VulkanExampleBase::keyboardKeymapCb(void *data, struct wl_keyboard *keyboard, uint32_t format, int fd, uint32_t size)
 {
 }
 
+/**
+ * @brief Wayland 键盘进入表面回调（静态）
+ * 键盘焦点进入表面时调用（当前为空实现）
+ * @param data 用户数据
+ * @param keyboard Wayland 键盘对象
+ * @param serial 序列号
+ * @param surface Wayland 表面对象
+ * @param keys 当前按下的键数组
+ */
 /*static*/void VulkanExampleBase::keyboardEnterCb(void *data, struct wl_keyboard *keyboard, uint32_t serial, struct wl_surface *surface, struct wl_array *keys)
 {
 }
 
+/**
+ * @brief Wayland 键盘离开表面回调（静态）
+ * 键盘焦点离开表面时调用（当前为空实现）
+ * @param data 用户数据
+ * @param keyboard Wayland 键盘对象
+ * @param serial 序列号
+ * @param surface Wayland 表面对象
+ */
 /*static*/void VulkanExampleBase::keyboardLeaveCb(void *data, struct wl_keyboard *keyboard, uint32_t serial, struct wl_surface *surface)
 {
 }
@@ -2342,87 +2704,127 @@ void VulkanExampleBase::pointerAxis(wl_pointer *pointer, uint32_t time, uint32_t
 	self->keyboardKey(keyboard, serial, time, key, state);
 }
 
+/**
+ * @brief 处理 Wayland 键盘按键事件
+ * @param keyboard Wayland 键盘对象
+ * @param serial 序列号
+ * @param time 时间戳
+ * @param key 按键代码
+ * @param state 按键状态（按下/释放）
+ */
 void VulkanExampleBase::keyboardKey(struct wl_keyboard *keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state)
 {
-	switch (key)
+	switch (key)  // 根据按键代码处理
 	{
-	case KEY_W:
-		camera.keys.up = !!state;
+	case KEY_W:  // W 键
+		camera.keys.up = !!state;  // 设置相机向上移动标志
 		break;
-	case KEY_S:
-		camera.keys.down = !!state;
+	case KEY_S:  // S 键
+		camera.keys.down = !!state;  // 设置相机向下移动标志
 		break;
-	case KEY_A:
-		camera.keys.left = !!state;
+	case KEY_A:  // A 键
+		camera.keys.left = !!state;  // 设置相机向左移动标志
 		break;
-	case KEY_D:
-		camera.keys.right = !!state;
+	case KEY_D:  // D 键
+		camera.keys.right = !!state;  // 设置相机向右移动标志
 		break;
-	case KEY_P:
-		if (state)
-			paused = !paused;
+	case KEY_P:  // P 键
+		if (state)  // 如果按下
+			paused = !paused;  // 切换暂停状态
 		break;
-	case KEY_F1:
-		if (state) {
-			ui.visible = !ui.visible;
+	case KEY_F1:  // F1 键
+		if (state) {  // 如果按下
+			ui.visible = !ui.visible;  // 切换 UI 可见性
 		}
 		break;
-	case KEY_ESCAPE:
-		quit = true;
+	case KEY_ESCAPE:  // ESC 键
+		quit = true;  // 设置退出标志
 		break;
 	}
 
-	if (state)
-		keyPressed(key);
+	if (state)  // 如果按键按下
+		keyPressed(key);  // 调用按键处理函数
 }
 
+/**
+ * @brief Wayland 键盘修饰键回调（静态）
+ * 键盘修饰键（Shift、Ctrl、Alt 等）状态变化时调用（当前为空实现）
+ * @param data 用户数据
+ * @param keyboard Wayland 键盘对象
+ * @param serial 序列号
+ * @param mods_depressed 当前按下的修饰键
+ * @param mods_latched 锁定的修饰键
+ * @param mods_locked 锁定的修饰键
+ * @param group 键盘布局组
+ */
 /*static*/void VulkanExampleBase::keyboardModifiersCb(void *data, struct wl_keyboard *keyboard, uint32_t serial, uint32_t mods_depressed, uint32_t mods_latched, uint32_t mods_locked, uint32_t group)
 {
 }
 
+/**
+ * @brief 处理 Wayland 输入设备能力变化
+ * 根据输入设备的能力创建或销毁指针和键盘对象
+ * @param seat Wayland 输入设备对象
+ * @param caps 设备能力标志（指针、键盘等）
+ */
 void VulkanExampleBase::seatCapabilities(wl_seat *seat, uint32_t caps)
 {
-	if ((caps & WL_SEAT_CAPABILITY_POINTER) && !pointer)
+	if ((caps & WL_SEAT_CAPABILITY_POINTER) && !pointer)  // 如果支持指针且指针未创建
 	{
-		pointer = wl_seat_get_pointer(seat);
+		pointer = wl_seat_get_pointer(seat);  // 获取指针对象
 		static const struct wl_pointer_listener pointer_listener =
 		{ pointerEnterCb, pointerLeaveCb, pointerMotionCb, pointerButtonCb,
-				pointerAxisCb, };
-		wl_pointer_add_listener(pointer, &pointer_listener, this);
+				pointerAxisCb, };  // 指针监听器
+		wl_pointer_add_listener(pointer, &pointer_listener, this);  // 添加监听器
 	}
-	else if (!(caps & WL_SEAT_CAPABILITY_POINTER) && pointer)
+	else if (!(caps & WL_SEAT_CAPABILITY_POINTER) && pointer)  // 如果不支持指针且指针已创建
 	{
-		wl_pointer_destroy(pointer);
-		pointer = nullptr;
+		wl_pointer_destroy(pointer);  // 销毁指针对象
+		pointer = nullptr;  // 清空指针
 	}
 
-	if ((caps & WL_SEAT_CAPABILITY_KEYBOARD) && !keyboard)
+	if ((caps & WL_SEAT_CAPABILITY_KEYBOARD) && !keyboard)  // 如果支持键盘且键盘未创建
 	{
-		keyboard = wl_seat_get_keyboard(seat);
+		keyboard = wl_seat_get_keyboard(seat);  // 获取键盘对象
 		static const struct wl_keyboard_listener keyboard_listener =
 		{ keyboardKeymapCb, keyboardEnterCb, keyboardLeaveCb, keyboardKeyCb,
-				keyboardModifiersCb, };
-		wl_keyboard_add_listener(keyboard, &keyboard_listener, this);
+				keyboardModifiersCb, };  // 键盘监听器
+		wl_keyboard_add_listener(keyboard, &keyboard_listener, this);  // 添加监听器
 	}
-	else if (!(caps & WL_SEAT_CAPABILITY_KEYBOARD) && keyboard)
+	else if (!(caps & WL_SEAT_CAPABILITY_KEYBOARD) && keyboard)  // 如果不支持键盘且键盘已创建
 	{
-		wl_keyboard_destroy(keyboard);
-		keyboard = nullptr;
+		wl_keyboard_destroy(keyboard);  // 销毁键盘对象
+		keyboard = nullptr;  // 清空键盘
 	}
 }
 
+/**
+ * @brief XDG WM Base ping 回调（Wayland）
+ * 响应窗口管理器的 ping 请求，发送 pong 响应
+ * @param data 用户数据（未使用）
+ * @param shell XDG WM Base 对象
+ * @param serial 序列号
+ */
 static void xdg_wm_base_ping(void *data, struct xdg_wm_base *shell, uint32_t serial)
 {
-	xdg_wm_base_pong(shell, serial);
+	xdg_wm_base_pong(shell, serial);  // 发送 pong 响应
 }
 
 static const struct xdg_wm_base_listener xdg_wm_base_listener = {
 	xdg_wm_base_ping,
 };
 
+/**
+ * @brief 处理 Wayland 注册表全局对象
+ * 绑定 Wayland 协议对象（合成器、shell、输入设备等）
+ * @param registry Wayland 注册表对象
+ * @param name 对象名称
+ * @param interface 接口名称
+ * @param version 接口版本
+ */
 void VulkanExampleBase::registryGlobal(wl_registry *registry, uint32_t name, const char *interface, uint32_t version)
 {
-	if (strcmp(interface, "wl_compositor") == 0)
+	if (strcmp(interface, "wl_compositor") == 0)  // 如果是合成器接口
 	{
 		compositor = (wl_compositor *) wl_registry_bind(registry, name,
 				&wl_compositor_interface, 3);
@@ -2444,64 +2846,90 @@ void VulkanExampleBase::registryGlobal(wl_registry *registry, uint32_t name, con
 	}
 }
 
+/**
+ * @brief Wayland 注册表全局对象移除回调（静态）
+ * 全局对象从注册表中移除时调用（当前为空实现）
+ */
+/**
+ * @brief Wayland 注册表全局对象移除回调（静态）
+ * 全局对象从注册表中移除时调用（当前为空实现）
+ */
 /*static*/void VulkanExampleBase::registryGlobalRemoveCb(void *data, struct wl_registry *registry, uint32_t name)
 {
 }
 
+/**
+ * @brief 初始化 Wayland 连接
+ * 连接到 Wayland 显示服务器，获取注册表并绑定必要的协议
+ * 包括合成器、shell 和输入设备（seat）
+ */
 void VulkanExampleBase::initWaylandConnection()
 {
-	display = wl_display_connect(NULL);
-	if (!display)
+	display = wl_display_connect(NULL);  // 连接到 Wayland 显示服务器
+	if (!display)  // 如果连接失败
 	{
 		std::cout << "Could not connect to Wayland display!\n";
 		fflush(stdout);
-		exit(1);
+		exit(1);  // 退出
 	}
 
-	registry = wl_display_get_registry(display);
-	if (!registry)
+	registry = wl_display_get_registry(display);  // 获取注册表
+	if (!registry)  // 如果获取失败
 	{
 		std::cout << "Could not get Wayland registry!\n";
 		fflush(stdout);
-		exit(1);
+		exit(1);  // 退出
 	}
 
 	static const struct wl_registry_listener registry_listener =
-	{ registryGlobalCb, registryGlobalRemoveCb };
-	wl_registry_add_listener(registry, &registry_listener, this);
-	wl_display_dispatch(display);
-	wl_display_roundtrip(display);
-	if (!compositor || !shell)
+	{ registryGlobalCb, registryGlobalRemoveCb };  // 注册表监听器
+	wl_registry_add_listener(registry, &registry_listener, this);  // 添加监听器
+	wl_display_dispatch(display);  // 分发事件
+	wl_display_roundtrip(display);  // 完成往返（确保所有绑定完成）
+	if (!compositor || !shell)  // 如果合成器或 shell 未绑定
 	{
 		std::cout << "Could not bind Wayland protocols!\n";
 		fflush(stdout);
-		exit(1);
+		exit(1);  // 退出
 	}
-	if (!seat)
+	if (!seat)  // 如果输入设备未绑定
 	{
 		std::cout << "WARNING: Input handling not available!\n";
 		fflush(stdout);
 	}
 }
 
+/**
+ * @brief 设置窗口大小（Wayland）
+ * 设置目标窗口大小并触发窗口调整大小
+ * @param width 窗口宽度
+ * @param height 窗口高度
+ */
 void VulkanExampleBase::setSize(int width, int height)
 {
-	if (width <= 0 || height <= 0)
-		return;
+	if (width <= 0 || height <= 0)  // 如果宽度或高度无效
+		return;  // 直接返回
 
-	destWidth = width;
-	destHeight = height;
+	destWidth = width;  // 设置目标宽度
+	destHeight = height;  // 设置目标高度
 
-	windowResize();
+	windowResize();  // 调整窗口大小
 }
 
+/**
+ * @brief XDG 表面配置回调（Wayland）
+ * 处理 XDG 表面的配置事件，确认配置并标记为已配置
+ * @param data 用户数据（VulkanExampleBase 实例指针）
+ * @param surface XDG 表面对象
+ * @param serial 序列号
+ */
 static void
 xdg_surface_handle_configure(void *data, struct xdg_surface *surface, uint32_t serial)
 {
-	VulkanExampleBase *base = (VulkanExampleBase *) data;
+	VulkanExampleBase *base = (VulkanExampleBase *) data;  // 获取实例指针
 
-	xdg_surface_ack_configure(surface, serial);
-	base->configured = true;
+	xdg_surface_ack_configure(surface, serial);  // 确认配置
+	base->configured = true;  // 标记为已配置
 }
 
 static const struct xdg_surface_listener xdg_surface_listener = {
@@ -2509,20 +2937,35 @@ static const struct xdg_surface_listener xdg_surface_listener = {
 };
 
 
+/**
+ * @brief XDG 顶层窗口配置回调（Wayland）
+ * 处理顶层窗口的配置事件，更新窗口大小
+ * @param data 用户数据（VulkanExampleBase 实例指针）
+ * @param toplevel XDG 顶层窗口对象
+ * @param width 新宽度
+ * @param height 新高度
+ * @param states 窗口状态数组（未使用）
+ */
 static void
 xdg_toplevel_handle_configure(void *data, struct xdg_toplevel *toplevel, int32_t width, int32_t height, struct wl_array *states)
 {
-	VulkanExampleBase *base = (VulkanExampleBase *) data;
+	VulkanExampleBase *base = (VulkanExampleBase *) data;  // 获取实例指针
 
-	base->setSize(width, height);
+	base->setSize(width, height);  // 设置窗口大小
 }
 
+/**
+ * @brief XDG 顶层窗口关闭回调（Wayland）
+ * 处理顶层窗口的关闭请求，设置退出标志
+ * @param data 用户数据（VulkanExampleBase 实例指针）
+ * @param xdg_toplevel XDG 顶层窗口对象
+ */
 static void
 xdg_toplevel_handle_close(void *data, struct xdg_toplevel *xdg_toplevel)
 {
-	VulkanExampleBase *base = (VulkanExampleBase *) data;
+	VulkanExampleBase *base = (VulkanExampleBase *) data;  // 获取实例指针
 
-	base->quit = true;
+	base->quit = true;  // 设置退出标志
 }
 
 
@@ -2532,240 +2975,275 @@ static const struct xdg_toplevel_listener xdg_toplevel_listener = {
 };
 
 
+/**
+ * @brief 设置窗口（Wayland）
+ * 创建 Wayland 表面、XDG 表面和顶层窗口
+ * 设置窗口标题和全屏模式（如果启用）
+ * @return XDG 表面指针
+ */
 struct xdg_surface *VulkanExampleBase::setupWindow()
 {
-	surface = wl_compositor_create_surface(compositor);
-	xdg_surface = xdg_wm_base_get_xdg_surface(shell, surface);
+	surface = wl_compositor_create_surface(compositor);  // 创建 Wayland 表面
+	xdg_surface = xdg_wm_base_get_xdg_surface(shell, surface);  // 获取 XDG 表面
 
-	xdg_surface_add_listener(xdg_surface, &xdg_surface_listener, this);
-	xdg_toplevel = xdg_surface_get_toplevel(xdg_surface);
-	xdg_toplevel_add_listener(xdg_toplevel, &xdg_toplevel_listener, this);
+	xdg_surface_add_listener(xdg_surface, &xdg_surface_listener, this);  // 添加表面监听器
+	xdg_toplevel = xdg_surface_get_toplevel(xdg_surface);  // 获取顶层窗口
+	xdg_toplevel_add_listener(xdg_toplevel, &xdg_toplevel_listener, this);  // 添加顶层窗口监听器
 
-	std::string windowTitle = getWindowTitle();
-	xdg_toplevel_set_title(xdg_toplevel, windowTitle.c_str());
-	if (settings.fullscreen)
+	std::string windowTitle = getWindowTitle();  // 获取窗口标题
+	xdg_toplevel_set_title(xdg_toplevel, windowTitle.c_str());  // 设置窗口标题
+	if (settings.fullscreen)  // 如果全屏模式
 	{
-		xdg_toplevel_set_fullscreen(xdg_toplevel, NULL);
+		xdg_toplevel_set_fullscreen(xdg_toplevel, NULL);  // 设置全屏
 	}	
-	wl_surface_commit(surface);
-	wl_display_flush(display);
+	wl_surface_commit(surface);  // 提交表面更改
+	wl_display_flush(display);  // 刷新显示连接
 
-	return xdg_surface;
+	return xdg_surface;  // 返回 XDG 表面指针
 }
 
 #elif defined(VK_USE_PLATFORM_XCB_KHR)
 
+/**
+ * @brief XCB 原子辅助函数
+ * 获取 XCB 原子（atom）的辅助函数
+ * @param conn XCB 连接
+ * @param only_if_exists 如果为 true，仅当原子已存在时返回
+ * @param str 原子名称字符串
+ * @return 原子回复指针，失败返回 NULL
+ */
 static inline xcb_intern_atom_reply_t* intern_atom_helper(xcb_connection_t *conn, bool only_if_exists, const char *str)
 {
-	xcb_intern_atom_cookie_t cookie = xcb_intern_atom(conn, only_if_exists, strlen(str), str);
-	return xcb_intern_atom_reply(conn, cookie, NULL);
+	xcb_intern_atom_cookie_t cookie = xcb_intern_atom(conn, only_if_exists, strlen(str), str);  // 获取原子 cookie
+	return xcb_intern_atom_reply(conn, cookie, NULL);  // 获取原子回复
 }
 
 // Set up a window using XCB and request event types
+/**
+ * @brief 设置窗口（Linux/X11 XCB）
+ * 创建 XCB 窗口，设置窗口属性，处理全屏模式
+ * @return 创建的窗口 ID
+ */
 xcb_window_t VulkanExampleBase::setupWindow()
 {
-	uint32_t value_mask, value_list[32];
+	uint32_t value_mask, value_list[32];  // 窗口属性掩码和值列表
 
-	window = xcb_generate_id(connection);
+	window = xcb_generate_id(connection);  // 生成窗口 ID
 
-	value_mask = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
-	value_list[0] = screen->black_pixel;
+	value_mask = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;  // 窗口属性掩码：背景像素和事件掩码
+	value_list[0] = screen->black_pixel;  // 背景像素（黑色）
 	value_list[1] =
-		XCB_EVENT_MASK_KEY_RELEASE |
-		XCB_EVENT_MASK_KEY_PRESS |
-		XCB_EVENT_MASK_EXPOSURE |
-		XCB_EVENT_MASK_STRUCTURE_NOTIFY |
-		XCB_EVENT_MASK_POINTER_MOTION |
-		XCB_EVENT_MASK_BUTTON_PRESS |
-		XCB_EVENT_MASK_BUTTON_RELEASE;
+		XCB_EVENT_MASK_KEY_RELEASE |  // 按键释放事件
+		XCB_EVENT_MASK_KEY_PRESS |  // 按键按下事件
+		XCB_EVENT_MASK_EXPOSURE |  // 暴露事件
+		XCB_EVENT_MASK_STRUCTURE_NOTIFY |  // 结构通知事件
+		XCB_EVENT_MASK_POINTER_MOTION |  // 指针移动事件
+		XCB_EVENT_MASK_BUTTON_PRESS |  // 按键按下事件
+		XCB_EVENT_MASK_BUTTON_RELEASE;  // 按键释放事件
 
-	if (settings.fullscreen)
+	if (settings.fullscreen)  // 如果全屏模式
 	{
-		width = destWidth = screen->width_in_pixels;
-		height = destHeight = screen->height_in_pixels;
+		width = destWidth = screen->width_in_pixels;  // 使用屏幕宽度
+		height = destHeight = screen->height_in_pixels;  // 使用屏幕高度
 	}
 
-	xcb_create_window(connection,
-		XCB_COPY_FROM_PARENT,
-		window, screen->root,
-		0, 0, width, height, 0,
-		XCB_WINDOW_CLASS_INPUT_OUTPUT,
-		screen->root_visual,
-		value_mask, value_list);
+	xcb_create_window(connection,  // XCB 连接
+		XCB_COPY_FROM_PARENT,  // 深度（从父窗口复制）
+		window, screen->root,  // 窗口 ID 和父窗口（根窗口）
+		0, 0, width, height, 0,  // X、Y、宽度、高度、边框宽度
+		XCB_WINDOW_CLASS_INPUT_OUTPUT,  // 窗口类（输入输出）
+		screen->root_visual,  // 视觉（根视觉）
+		value_mask, value_list);  // 属性掩码和值列表
 
 	/* Magic code that will send notification when window is destroyed */
-	xcb_intern_atom_reply_t* reply = intern_atom_helper(connection, true, "WM_PROTOCOLS");
-	atom_wm_delete_window = intern_atom_helper(connection, false, "WM_DELETE_WINDOW");
+	/* 当窗口被销毁时发送通知的代码 */
+	xcb_intern_atom_reply_t* reply = intern_atom_helper(connection, true, "WM_PROTOCOLS");  // 获取 WM_PROTOCOLS 原子
+	atom_wm_delete_window = intern_atom_helper(connection, false, "WM_DELETE_WINDOW");  // 获取 WM_DELETE_WINDOW 原子
 
-	xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
-		window, (*reply).atom, 4, 32, 1,
-		&(*atom_wm_delete_window).atom);
+	xcb_change_property(connection, XCB_PROP_MODE_REPLACE,  // 更改属性（替换模式）
+		window, (*reply).atom, 4, 32, 1,  // 窗口、原子、格式（32位）、长度、数据
+		&(*atom_wm_delete_window).atom);  // 数据指针（删除窗口原子）
 
-	std::string windowTitle = getWindowTitle();
-	xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
-		window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8,
-		title.size(), windowTitle.c_str());
+	std::string windowTitle = getWindowTitle();  // 获取窗口标题
+	xcb_change_property(connection, XCB_PROP_MODE_REPLACE,  // 更改属性（替换模式）
+		window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8,  // 窗口、原子（窗口名称）、类型（字符串）、格式（8位）
+		title.size(), windowTitle.c_str());  // 长度、数据
 
-	free(reply);
+	free(reply);  // 释放回复
 
 	/**
 	 * Set the WM_CLASS property to display
 	 * title in dash tooltip and application menu
 	 * on GNOME and other desktop environments
 	 */
-	std::string wm_class;
-	wm_class = wm_class.insert(0, name);
-	wm_class = wm_class.insert(name.size(), 1, '\0');
-	wm_class = wm_class.insert(name.size() + 1, title);
-	wm_class = wm_class.insert(wm_class.size(), 1, '\0');
-	xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window, XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, wm_class.size() + 2, wm_class.c_str());
+	/**
+	 * 设置 WM_CLASS 属性，以便在 GNOME 和其他桌面环境的
+	 * 启动器工具提示和应用程序菜单中显示标题
+	 */
+	std::string wm_class;  // WM 类字符串
+	wm_class = wm_class.insert(0, name);  // 插入名称
+	wm_class = wm_class.insert(name.size(), 1, '\0');  // 插入空字符分隔符
+	wm_class = wm_class.insert(name.size() + 1, title);  // 插入标题
+	wm_class = wm_class.insert(wm_class.size(), 1, '\0');  // 插入结束空字符
+	xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window, XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, wm_class.size() + 2, wm_class.c_str());  // 设置 WM_CLASS 属性
 
-	if (settings.fullscreen)
+	if (settings.fullscreen)  // 如果全屏模式
 	{
-		xcb_intern_atom_reply_t *atom_wm_state = intern_atom_helper(connection, false, "_NET_WM_STATE");
-		xcb_intern_atom_reply_t *atom_wm_fullscreen = intern_atom_helper(connection, false, "_NET_WM_STATE_FULLSCREEN");
-		xcb_change_property(connection,
-				XCB_PROP_MODE_REPLACE,
-				window, atom_wm_state->atom,
-				XCB_ATOM_ATOM, 32, 1,
-				&(atom_wm_fullscreen->atom));
-		free(atom_wm_fullscreen);
-		free(atom_wm_state);
+		xcb_intern_atom_reply_t *atom_wm_state = intern_atom_helper(connection, false, "_NET_WM_STATE");  // 获取 _NET_WM_STATE 原子
+		xcb_intern_atom_reply_t *atom_wm_fullscreen = intern_atom_helper(connection, false, "_NET_WM_STATE_FULLSCREEN");  // 获取 _NET_WM_STATE_FULLSCREEN 原子
+		xcb_change_property(connection,  // 更改属性
+				XCB_PROP_MODE_REPLACE,  // 替换模式
+				window, atom_wm_state->atom,  // 窗口、原子
+				XCB_ATOM_ATOM, 32, 1,  // 类型（原子）、格式（32位）、长度
+				&(atom_wm_fullscreen->atom));  // 数据指针（全屏原子）
+		free(atom_wm_fullscreen);  // 释放全屏原子回复
+		free(atom_wm_state);  // 释放状态原子回复
 	}
 
-	xcb_map_window(connection, window);
+	xcb_map_window(connection, window);  // 映射窗口（显示窗口）
 
 	return(window);
 }
 
-// Initialize XCB connection
+/**
+ * @brief 初始化 XCB 连接（Linux/X11）
+ * 连接到 X 服务器并获取屏幕信息
+ * xcb_connect 即使失败也总是返回非 NULL 指针，需要使用 xcb_connection_has_error() 检查失败
+ */
 void VulkanExampleBase::initxcbConnection()
 {
-	const xcb_setup_t *setup;
-	xcb_screen_iterator_t iter;
-	int scr;
+	const xcb_setup_t *setup;  // XCB 设置
+	xcb_screen_iterator_t iter;  // 屏幕迭代器
+	int scr;  // 屏幕编号
 
 	// xcb_connect always returns a non-NULL pointer to a xcb_connection_t,
 	// even on failure. Callers need to use xcb_connection_has_error() to
 	// check for failure. When finished, use xcb_disconnect() to close the
 	// connection and free the structure.
-	connection = xcb_connect(NULL, &scr);
-	assert( connection );
-	if( xcb_connection_has_error(connection) ) {
+	// xcb_connect 即使失败也总是返回非 NULL 指针，调用者需要使用 xcb_connection_has_error() 检查失败
+	// 完成后，使用 xcb_disconnect() 关闭连接并释放结构
+	connection = xcb_connect(NULL, &scr);  // 连接到 X 服务器
+	assert( connection );  // 断言连接不为空
+	if( xcb_connection_has_error(connection) ) {  // 如果连接有错误
 		printf("Could not find a compatible Vulkan ICD!\n");
 		fflush(stdout);
-		exit(1);
+		exit(1);  // 退出
 	}
 
-	setup = xcb_get_setup(connection);
-	iter = xcb_setup_roots_iterator(setup);
-	while (scr-- > 0)
-		xcb_screen_next(&iter);
-	screen = iter.data;
+	setup = xcb_get_setup(connection);  // 获取设置
+	iter = xcb_setup_roots_iterator(setup);  // 获取屏幕迭代器
+	while (scr-- > 0)  // 遍历到指定屏幕
+		xcb_screen_next(&iter);  // 下一个屏幕
+	screen = iter.data;  // 保存屏幕数据
 }
 
+/**
+ * @brief 处理 XCB 事件（Linux/X11）
+ * 处理来自 X 服务器的事件，包括窗口关闭、按键等
+ * @param event XCB 通用事件指针
+ */
 void VulkanExampleBase::handleEvent(const xcb_generic_event_t *event)
 {
-	switch (event->response_type & 0x7f)
+	switch (event->response_type & 0x7f)  // 根据事件类型处理（清除最高位）
 	{
-	case XCB_CLIENT_MESSAGE:
+	case XCB_CLIENT_MESSAGE:  // 客户端消息事件
 		if ((*(xcb_client_message_event_t*)event).data.data32[0] ==
-			(*atom_wm_delete_window).atom) {
-			quit = true;
+			(*atom_wm_delete_window).atom) {  // 如果是窗口删除消息
+			quit = true;  // 设置退出标志
 		}
 		break;
-	case XCB_MOTION_NOTIFY:
+	case XCB_MOTION_NOTIFY:  // 鼠标移动通知事件
 	{
-		xcb_motion_notify_event_t *motion = (xcb_motion_notify_event_t *)event;
-		handleMouseMove((int32_t)motion->event_x, (int32_t)motion->event_y);
+		xcb_motion_notify_event_t *motion = (xcb_motion_notify_event_t *)event;  // 转换为移动事件
+		handleMouseMove((int32_t)motion->event_x, (int32_t)motion->event_y);  // 处理鼠标移动
 		break;
 	}
 	break;
-	case XCB_BUTTON_PRESS:
+	case XCB_BUTTON_PRESS:  // 鼠标按键按下事件
 	{
-		xcb_button_press_event_t *press = (xcb_button_press_event_t *)event;
-		if (press->detail == XCB_BUTTON_INDEX_1)
-			mouseState.buttons.left = true;
-		if (press->detail == XCB_BUTTON_INDEX_2)
-			mouseState.buttons.middle = true;
-		if (press->detail == XCB_BUTTON_INDEX_3)
-			mouseState.buttons.right = true;
+		xcb_button_press_event_t *press = (xcb_button_press_event_t *)event;  // 转换为按键按下事件
+		if (press->detail == XCB_BUTTON_INDEX_1)  // 如果左键
+			mouseState.buttons.left = true;  // 设置左键按下标志
+		if (press->detail == XCB_BUTTON_INDEX_2)  // 如果中键
+			mouseState.buttons.middle = true;  // 设置中键按下标志
+		if (press->detail == XCB_BUTTON_INDEX_3)  // 如果右键
+			mouseState.buttons.right = true;  // 设置右键按下标志
 	}
 	break;
-	case XCB_BUTTON_RELEASE:
+	case XCB_BUTTON_RELEASE:  // 鼠标按键释放事件
 	{
-		xcb_button_press_event_t *press = (xcb_button_press_event_t *)event;
-		if (press->detail == XCB_BUTTON_INDEX_1)
-			mouseState.buttons.left = false;
-		if (press->detail == XCB_BUTTON_INDEX_2)
-			mouseState.buttons.middle = false;
-		if (press->detail == XCB_BUTTON_INDEX_3)
-			mouseState.buttons.right = false;
+		xcb_button_press_event_t *press = (xcb_button_press_event_t *)event;  // 转换为按键释放事件
+		if (press->detail == XCB_BUTTON_INDEX_1)  // 如果左键
+			mouseState.buttons.left = false;  // 清除左键按下标志
+		if (press->detail == XCB_BUTTON_INDEX_2)  // 如果中键
+			mouseState.buttons.middle = false;  // 清除中键按下标志
+		if (press->detail == XCB_BUTTON_INDEX_3)  // 如果右键
+			mouseState.buttons.right = false;  // 清除右键按下标志
 	}
 	break;
-	case XCB_KEY_PRESS:
+	case XCB_KEY_PRESS:  // 按键按下事件
 	{
-		const xcb_key_release_event_t *keyEvent = (const xcb_key_release_event_t *)event;
-		switch (keyEvent->detail)
+		const xcb_key_release_event_t *keyEvent = (const xcb_key_release_event_t *)event;  // 转换为按键事件
+		switch (keyEvent->detail)  // 根据按键代码处理
 		{
-			case KEY_W:
-				camera.keys.up = true;
+			case KEY_W:  // W 键
+				camera.keys.up = true;  // 设置相机向上移动标志
 				break;
-			case KEY_S:
-				camera.keys.down = true;
+			case KEY_S:  // S 键
+				camera.keys.down = true;  // 设置相机向下移动标志
 				break;
-			case KEY_A:
-				camera.keys.left = true;
+			case KEY_A:  // A 键
+				camera.keys.left = true;  // 设置相机向左移动标志
 				break;
-			case KEY_D:
-				camera.keys.right = true;
+			case KEY_D:  // D 键
+				camera.keys.right = true;  // 设置相机向右移动标志
 				break;
-			case KEY_P:
-				paused = !paused;
+			case KEY_P:  // P 键
+				paused = !paused;  // 切换暂停状态
 				break;
-			case KEY_F1:
-				ui.visible = !ui.visible;
+			case KEY_F1:  // F1 键
+				ui.visible = !ui.visible;  // 切换 UI 可见性
 				break;
 		}
 	}
 	break;
-	case XCB_KEY_RELEASE:
+	case XCB_KEY_RELEASE:  // 按键释放事件
 	{
-		const xcb_key_release_event_t *keyEvent = (const xcb_key_release_event_t *)event;
-		switch (keyEvent->detail)
+		const xcb_key_release_event_t *keyEvent = (const xcb_key_release_event_t *)event;  // 转换为按键事件
+		switch (keyEvent->detail)  // 根据按键代码处理
 		{
-			case KEY_W:
-				camera.keys.up = false;
+			case KEY_W:  // W 键
+				camera.keys.up = false;  // 清除相机向上移动标志
 				break;
-			case KEY_S:
-				camera.keys.down = false;
+			case KEY_S:  // S 键
+				camera.keys.down = false;  // 清除相机向下移动标志
 				break;
-			case KEY_A:
-				camera.keys.left = false;
+			case KEY_A:  // A 键
+				camera.keys.left = false;  // 清除相机向左移动标志
 				break;
-			case KEY_D:
-				camera.keys.right = false;
+			case KEY_D:  // D 键
+				camera.keys.right = false;  // 清除相机向右移动标志
 				break;
-			case KEY_ESCAPE:
-				quit = true;
+			case KEY_ESCAPE:  // ESC 键
+				quit = true;  // 设置退出标志
 				break;
 		}
-		keyPressed(keyEvent->detail);
+		keyPressed(keyEvent->detail);  // 调用按键处理函数
 	}
 	break;
-	case XCB_DESTROY_NOTIFY:
-		quit = true;
+	case XCB_DESTROY_NOTIFY:  // 窗口销毁通知事件
+		quit = true;  // 设置退出标志
 		break;
-	case XCB_CONFIGURE_NOTIFY:
+	case XCB_CONFIGURE_NOTIFY:  // 窗口配置通知事件
 	{
-		const xcb_configure_notify_event_t *cfgEvent = (const xcb_configure_notify_event_t *)event;
-		if ((prepared) && ((cfgEvent->width != width) || (cfgEvent->height != height)))
+		const xcb_configure_notify_event_t *cfgEvent = (const xcb_configure_notify_event_t *)event;  // 转换为配置事件
+		if ((prepared) && ((cfgEvent->width != width) || (cfgEvent->height != height)))  // 如果已准备且大小改变
 		{
-				destWidth = cfgEvent->width;
-				destHeight = cfgEvent->height;
-				if ((destWidth > 0) && (destHeight > 0))
+				destWidth = cfgEvent->width;  // 设置目标宽度
+				destHeight = cfgEvent->height;  // 设置目标高度
+				if ((destWidth > 0) && (destHeight > 0))  // 如果宽度和高度有效
 				{
-					windowResize();
+					windowResize();  // 调整窗口大小
 				}
 		}
 	}
@@ -2775,17 +3253,21 @@ void VulkanExampleBase::handleEvent(const xcb_generic_event_t *event)
 	}
 }
 #elif defined(VK_USE_PLATFORM_SCREEN_QNX)
+/**
+ * @brief 处理 QNX Screen 事件
+ * 处理 QNX Screen 窗口系统的事件，包括键盘、鼠标、窗口属性变化等
+ */
 void VulkanExampleBase::handleEvent()
 {
-	int size[2] = { 0, 0 };
-	screen_window_t win;
-	static int mouse_buttons = 0;
-	int pos[2];
-	int val;
-	int keyflags;
-	int rc;
+	int size[2] = { 0, 0 };  // 窗口大小
+	screen_window_t win;  // 窗口句柄
+	static int mouse_buttons = 0;  // 鼠标按键状态
+	int pos[2];  // 鼠标位置
+	int val;  // 事件值
+	int keyflags;  // 按键标志
+	int rc;  // 返回码
 
-	while (!screen_get_event(screen_context, screen_event, paused ? ~0 : 0)) {
+	while (!screen_get_event(screen_context, screen_event, paused ? ~0 : 0)) {  // 获取事件（如果暂停则无限等待）
 		rc = screen_get_event_property_iv(screen_event, SCREEN_PROPERTY_TYPE, &val);
 		if (rc) {
 			printf("Cannot get SCREEN_PROPERTY_TYPE of the event! (%s)\n", strerror(errno));
@@ -2862,117 +3344,122 @@ void VulkanExampleBase::handleEvent()
 					}
 				}
 				break;
-			case SCREEN_EVENT_PROPERTY:
-				rc = screen_get_event_property_pv(screen_event, SCREEN_PROPERTY_WINDOW, (void **)&win);
-				if (rc) {
+			case SCREEN_EVENT_PROPERTY:  // 窗口属性变化事件
+				rc = screen_get_event_property_pv(screen_event, SCREEN_PROPERTY_WINDOW, (void **)&win);  // 获取窗口句柄
+				if (rc) {  // 如果获取失败
 					printf("Cannot get SCREEN_PROPERTY_WINDOW of the event! (%s)\n", strerror(errno));
 					fflush(stdout);
-					quit = true;
+					quit = true;  // 设置退出标志
 					break;
 				}
-				rc = screen_get_event_property_iv(screen_event, SCREEN_PROPERTY_NAME, &val);
-				if (rc) {
+				rc = screen_get_event_property_iv(screen_event, SCREEN_PROPERTY_NAME, &val);  // 获取属性名称
+				if (rc) {  // 如果获取失败
 					printf("Cannot get SCREEN_PROPERTY_NAME of the event! (%s)\n", strerror(errno));
 					fflush(stdout);
-					quit = true;
+					quit = true;  // 设置退出标志
 					break;
 				}
-				if (win == screen_window) {
-					switch(val) {
-						case SCREEN_PROPERTY_SIZE:
-							rc = screen_get_window_property_iv(win, SCREEN_PROPERTY_SIZE, size);
-							if (rc) {
+				if (win == screen_window) {  // 如果是我们的窗口
+					switch(val) {  // 根据属性名称处理
+						case SCREEN_PROPERTY_SIZE:  // 窗口大小属性
+							rc = screen_get_window_property_iv(win, SCREEN_PROPERTY_SIZE, size);  // 获取窗口大小
+							if (rc) {  // 如果获取失败
 								printf("Cannot get SCREEN_PROPERTY_SIZE of the window in the event! (%s)\n", strerror(errno));
 								fflush(stdout);
-								quit = true;
+								quit = true;  // 设置退出标志
 								break;
 							}
-							width = size[0];
-							height = size[1];
-							windowResize();
+							width = size[0];  // 更新宽度
+							height = size[1];  // 更新高度
+							windowResize();  // 调整窗口大小
 							break;
 						default:
 							/* We are not interested in any other events for now */
+							/* 目前我们对其他事件不感兴趣 */
 							break;
 						}
 				}
 				break;
-			case SCREEN_EVENT_POINTER:
-				rc = screen_get_event_property_iv(screen_event, SCREEN_PROPERTY_BUTTONS, &val);
-				if (rc) {
+			case SCREEN_EVENT_POINTER:  // 指针（鼠标）事件
+				rc = screen_get_event_property_iv(screen_event, SCREEN_PROPERTY_BUTTONS, &val);  // 获取鼠标按键状态
+				if (rc) {  // 如果获取失败
 					printf("Cannot get SCREEN_PROPERTY_BUTTONS of the event! (%s)\n", strerror(errno));
 					fflush(stdout);
-					quit = true;
+					quit = true;  // 设置退出标志
 					break;
 				}
-				if ((mouse_buttons & SCREEN_LEFT_MOUSE_BUTTON) == 0) {
-					if ((val & SCREEN_LEFT_MOUSE_BUTTON) == SCREEN_LEFT_MOUSE_BUTTON) {
-						mouseState.buttons.left = true;
+				if ((mouse_buttons & SCREEN_LEFT_MOUSE_BUTTON) == 0) {  // 如果左键之前未按下
+					if ((val & SCREEN_LEFT_MOUSE_BUTTON) == SCREEN_LEFT_MOUSE_BUTTON) {  // 如果现在按下
+						mouseState.buttons.left = true;  // 设置左键按下标志
 					}
-				} else {
-					if ((val & SCREEN_LEFT_MOUSE_BUTTON) == 0) {
-						mouseState.buttons.left = false;
-					}
-				}
-				if ((mouse_buttons & SCREEN_RIGHT_MOUSE_BUTTON) == 0) {
-					if ((val & SCREEN_RIGHT_MOUSE_BUTTON) == SCREEN_RIGHT_MOUSE_BUTTON) {
-						mouseState.buttons.right = true;
-					}
-				} else {
-					if ((val & SCREEN_RIGHT_MOUSE_BUTTON) == 0) {
-						mouseState.buttons.right = false;
+				} else {  // 如果左键之前已按下
+					if ((val & SCREEN_LEFT_MOUSE_BUTTON) == 0) {  // 如果现在释放
+						mouseState.buttons.left = false;  // 清除左键按下标志
 					}
 				}
-				if ((mouse_buttons & SCREEN_MIDDLE_MOUSE_BUTTON) == 0) {
-					if ((val & SCREEN_MIDDLE_MOUSE_BUTTON) == SCREEN_MIDDLE_MOUSE_BUTTON) {
-						mouseState.buttons.middle = true;
+				if ((mouse_buttons & SCREEN_RIGHT_MOUSE_BUTTON) == 0) {  // 如果右键之前未按下
+					if ((val & SCREEN_RIGHT_MOUSE_BUTTON) == SCREEN_RIGHT_MOUSE_BUTTON) {  // 如果现在按下
+						mouseState.buttons.right = true;  // 设置右键按下标志
 					}
-				} else {
-					if ((val & SCREEN_MIDDLE_MOUSE_BUTTON) == 0) {
-						mouseState.buttons.middle = false;
+				} else {  // 如果右键之前已按下
+					if ((val & SCREEN_RIGHT_MOUSE_BUTTON) == 0) {  // 如果现在释放
+						mouseState.buttons.right = false;  // 清除右键按下标志
 					}
 				}
-				mouse_buttons = val;
+				if ((mouse_buttons & SCREEN_MIDDLE_MOUSE_BUTTON) == 0) {  // 如果中键之前未按下
+					if ((val & SCREEN_MIDDLE_MOUSE_BUTTON) == SCREEN_MIDDLE_MOUSE_BUTTON) {  // 如果现在按下
+						mouseState.buttons.middle = true;  // 设置中键按下标志
+					}
+				} else {  // 如果中键之前已按下
+					if ((val & SCREEN_MIDDLE_MOUSE_BUTTON) == 0) {  // 如果现在释放
+						mouseState.buttons.middle = false;  // 清除中键按下标志
+					}
+				}
+				mouse_buttons = val;  // 更新鼠标按键状态
 
-				rc = screen_get_event_property_iv(screen_event, SCREEN_PROPERTY_MOUSE_WHEEL, &val);
-				if (rc) {
+				rc = screen_get_event_property_iv(screen_event, SCREEN_PROPERTY_MOUSE_WHEEL, &val);  // 获取鼠标滚轮值
+				if (rc) {  // 如果获取失败
 					printf("Cannot get SCREEN_PROPERTY_MOUSE_WHEEL of the event! (%s)\n", strerror(errno));
 					fflush(stdout);
-					quit = true;
+					quit = true;  // 设置退出标志
 					break;
 				}
-				if (val != 0) {
-					camera.translate(glm::vec3(0.0f, 0.0f, (float)val * 0.005f));
+				if (val != 0) {  // 如果滚轮有移动
+					camera.translate(glm::vec3(0.0f, 0.0f, (float)val * 0.005f));  // 相机前后移动
 				}
 
-				rc = screen_get_event_property_iv(screen_event, SCREEN_PROPERTY_POSITION, pos);
-				if (rc) {
+				rc = screen_get_event_property_iv(screen_event, SCREEN_PROPERTY_POSITION, pos);  // 获取鼠标位置
+				if (rc) {  // 如果获取失败
 					printf("Cannot get SCREEN_PROPERTY_DISPLACEMENT of the event! (%s)\n", strerror(errno));
 					fflush(stdout);
-					quit = true;
+					quit = true;  // 设置退出标志
 					break;
 				}
-				if ((pos[0] != 0) || (pos[1] != 0)) {
-					handleMouseMove(pos[0], pos[1]);
+				if ((pos[0] != 0) || (pos[1] != 0)) {  // 如果位置有变化
+					handleMouseMove(pos[0], pos[1]);  // 处理鼠标移动
 				}
-				updateOverlay();
+				updateOverlay();  // 更新覆盖层
 				break;
 		}
 	}
 }
 
+/**
+ * @brief 设置窗口（QNX Screen）
+ * 创建 QNX Screen 上下文、窗口和事件对象，设置窗口属性
+ */
 void VulkanExampleBase::setupWindow()
 {
-	const char *idstr = name.c_str();
-	int size[2];
-	int usage = SCREEN_USAGE_VULKAN;
-	int rc;
+	const char *idstr = name.c_str();  // 窗口标识字符串
+	int size[2];  // 窗口大小
+	int usage = SCREEN_USAGE_VULKAN;  // 窗口用途：Vulkan
+	int rc;  // 返回码
 
-	if (screen_pipeline_set) {
-		usage |= SCREEN_USAGE_OVERLAY;
+	if (screen_pipeline_set) {  // 如果设置了屏幕管道
+		usage |= SCREEN_USAGE_OVERLAY;  // 添加叠加层用途
 	}
 
-	rc = screen_create_context(&screen_context, 0);
+	rc = screen_create_context(&screen_context, 0);  // 创建屏幕上下文
 	if (rc) {
 		printf("Cannot create QNX Screen context!\n");
 		fflush(stdout);
@@ -3055,294 +3542,402 @@ void VulkanExampleBase::setupWindow()
 }
 #endif
 
+/**
+ * @brief 按键处理（虚函数，默认空实现）
+ * 按键后调用，可由派生类重写以实现自定义按键处理
+ * @param keyCode 按键代码
+ */
 void VulkanExampleBase::keyPressed(uint32_t) {}
 
+/**
+ * @brief 鼠标移动处理（虚函数，默认空实现）
+ * 鼠标移动后调用，在处理内部事件（如相机旋转）之前
+ * 可由派生类重写以实现自定义鼠标处理
+ * @param x X 坐标
+ * @param y Y 坐标
+ * @param handled 是否已处理（输出参数）
+ */
 void VulkanExampleBase::mouseMoved(double x, double y, bool & handled) {}
 
+/**
+ * @brief 创建同步原语
+ * 创建信号量和栅栏，用于同步 CPU 和 GPU
+ * - 创建等待栅栏（用于同步命令缓冲区访问）
+ * - 创建呈现完成信号量（确保图像呈现完成后再提交）
+ * - 创建渲染完成信号量（确保所有命令完成后再提交图像到队列）
+ */
 void VulkanExampleBase::createSynchronizationPrimitives()
 {
 	// Wait fences to sync command buffer access
-	VkFenceCreateInfo fenceCreateInfo{ .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, .flags = VK_FENCE_CREATE_SIGNALED_BIT };
+	// 等待栅栏用于同步命令缓冲区访问
+	VkFenceCreateInfo fenceCreateInfo{ .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, .flags = VK_FENCE_CREATE_SIGNALED_BIT };  // 创建时已发出信号
 	for (auto& fence : waitFences) {
 		VK_CHECK_RESULT(vkCreateFence(device, &fenceCreateInfo, nullptr, &fence));
 	}
 	// Used to ensure that image presentation is complete before starting to submit again
+	// 用于确保图像呈现完成后再开始提交
 	for (auto& semaphore : presentCompleteSemaphores) {
 		VkSemaphoreCreateInfo semaphoreCI{ .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
 		VK_CHECK_RESULT(vkCreateSemaphore(device, &semaphoreCI, nullptr, &semaphore));
 	}
 	// Semaphore used to ensure that all commands submitted have been finished before submitting the image to the queue
-	renderCompleteSemaphores.resize(swapChain.images.size());
+	// 用于确保所有提交的命令完成后再将图像提交到队列的信号量
+	renderCompleteSemaphores.resize(swapChain.images.size());  // 调整大小以匹配交换链图像数量
 	for (auto& semaphore : renderCompleteSemaphores) {
 		VkSemaphoreCreateInfo semaphoreCI{ .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
 		VK_CHECK_RESULT(vkCreateSemaphore(device, &semaphoreCI, nullptr, &semaphore));
 	}
 }
 
+/**
+ * @brief 创建命令池
+ * 用于分配命令缓冲区
+ * @note 命令池与交换链的队列族索引关联，允许重置命令缓冲区
+ */
 void VulkanExampleBase::createCommandPool()
 {
 	VkCommandPoolCreateInfo cmdPoolInfo{
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-		.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-		.queueFamilyIndex = swapChain.queueNodeIndex,
+		.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,  // 允许重置命令缓冲区
+		.queueFamilyIndex = swapChain.queueNodeIndex,  // 队列族索引
 	};
 	VK_CHECK_RESULT(vkCreateCommandPool(device, &cmdPoolInfo, nullptr, &cmdPool));
 }
 
+/**
+ * @brief 设置深度模板缓冲区
+ * 创建深度模板图像、分配内存、绑定内存并创建图像视图
+ * 如果深度格式支持模板，则同时设置模板方面
+ */
 void VulkanExampleBase::setupDepthStencil()
 {
 	VkImageCreateInfo imageCI{
 		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-		.imageType = VK_IMAGE_TYPE_2D,
-		.format = depthFormat,
-		.extent = { width, height, 1 },
-		.mipLevels = 1,
-		.arrayLayers = 1,
-		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.tiling = VK_IMAGE_TILING_OPTIMAL,
-		.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
+		.imageType = VK_IMAGE_TYPE_2D,  // 2D 图像
+		.format = depthFormat,  // 深度格式
+		.extent = { width, height, 1 },  // 图像范围（宽度、高度、深度）
+		.mipLevels = 1,  // 单个 Mip 级别
+		.arrayLayers = 1,  // 单个数组层
+		.samples = VK_SAMPLE_COUNT_1_BIT,  // 单采样
+		.tiling = VK_IMAGE_TILING_OPTIMAL,  // 最优平铺
+		.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT  // 深度模板附件用途
 	};
-	VK_CHECK_RESULT(vkCreateImage(device, &imageCI, nullptr, &depthStencil.image));
-	VkMemoryRequirements memReqs{};
-	vkGetImageMemoryRequirements(device, depthStencil.image, &memReqs);
+	VK_CHECK_RESULT(vkCreateImage(device, &imageCI, nullptr, &depthStencil.image));  // 创建深度模板图像
+	VkMemoryRequirements memReqs{};  // 内存需求
+	vkGetImageMemoryRequirements(device, depthStencil.image, &memReqs);  // 获取图像内存需求
 
 	VkMemoryAllocateInfo memAllloc{
 		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-		.allocationSize = memReqs.size,
-		.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+		.allocationSize = memReqs.size,  // 分配大小
+		.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)  // 设备本地内存类型
 	};
-	VK_CHECK_RESULT(vkAllocateMemory(device, &memAllloc, nullptr, &depthStencil.memory));
-	VK_CHECK_RESULT(vkBindImageMemory(device, depthStencil.image, depthStencil.memory, 0));
+	VK_CHECK_RESULT(vkAllocateMemory(device, &memAllloc, nullptr, &depthStencil.memory));  // 分配内存
+	VK_CHECK_RESULT(vkBindImageMemory(device, depthStencil.image, depthStencil.memory, 0));  // 绑定图像内存
 
 	VkImageViewCreateInfo imageViewCI{
 		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-		.image = depthStencil.image,
-		.viewType = VK_IMAGE_VIEW_TYPE_2D,
-		.format = depthFormat,
+		.image = depthStencil.image,  // 图像句柄
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,  // 2D 视图
+		.format = depthFormat,  // 深度格式
 		.subresourceRange = {
-			.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
-			.baseMipLevel = 0,
-			.levelCount = 1,
-			.baseArrayLayer = 0,
-			.layerCount = 1,
+			.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,  // 深度方面
+			.baseMipLevel = 0,  // 基础 Mip 级别
+			.levelCount = 1,  // Mip 级别数量
+			.baseArrayLayer = 0,  // 基础数组层
+			.layerCount = 1,  // 数组层数量
 		}
 	};
 	// Stencil aspect should only be set on depth + stencil formats (VK_FORMAT_D16_UNORM_S8_UINT..VK_FORMAT_D32_SFLOAT_S8_UINT
-	if (depthFormat >= VK_FORMAT_D16_UNORM_S8_UINT) {
-		imageViewCI.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+	// 模板方面应仅在深度+模板格式上设置（VK_FORMAT_D16_UNORM_S8_UINT..VK_FORMAT_D32_SFLOAT_S8_UINT）
+	if (depthFormat >= VK_FORMAT_D16_UNORM_S8_UINT) {  // 如果深度格式支持模板
+		imageViewCI.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;  // 添加模板方面
 	}
-	VK_CHECK_RESULT(vkCreateImageView(device, &imageViewCI, nullptr, &depthStencil.view));
+	VK_CHECK_RESULT(vkCreateImageView(device, &imageViewCI, nullptr, &depthStencil.view));  // 创建图像视图
 }
 
+/**
+ * @brief 设置帧缓冲区
+ * 为每个交换链图像创建帧缓冲区
+ * 每个帧缓冲区包含一个颜色附件（交换链图像视图）和一个深度模板附件
+ */
 void VulkanExampleBase::setupFrameBuffer()
 {
 	// Create frame buffers for every swap chain image, only one depth/stencil attachment is required, as this is owned by the application
-	frameBuffers.resize(swapChain.images.size());
+	// 为每个交换链图像创建帧缓冲区，只需要一个深度/模板附件，因为这是由应用程序拥有的
+	frameBuffers.resize(swapChain.images.size());  // 调整帧缓冲区大小以匹配交换链图像数量
 	for (uint32_t i = 0; i < frameBuffers.size(); i++) {
-		const VkImageView attachments[2] = { swapChain.imageViews[i], depthStencil.view };
+		const VkImageView attachments[2] = { swapChain.imageViews[i], depthStencil.view };  // 附件：颜色图像视图和深度模板视图
 		VkFramebufferCreateInfo frameBufferCreateInfo{
 			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-			.renderPass = renderPass,
-			.attachmentCount = 2,
-			.pAttachments = attachments,
-			.width = width,
-			.height = height,
-			.layers = 1
+			.renderPass = renderPass,  // 渲染通道
+			.attachmentCount = 2,  // 附件数量（颜色 + 深度模板）
+			.pAttachments = attachments,  // 附件数组
+			.width = width,  // 帧缓冲区宽度
+			.height = height,  // 帧缓冲区高度
+			.layers = 1  // 层数
 		};
-		VK_CHECK_RESULT(vkCreateFramebuffer(device, &frameBufferCreateInfo, nullptr, &frameBuffers[i]));
+		VK_CHECK_RESULT(vkCreateFramebuffer(device, &frameBufferCreateInfo, nullptr, &frameBuffers[i]));  // 创建帧缓冲区
 	}
 }
 
+/**
+ * @brief 设置渲染通道
+ * 创建默认渲染通道，包含颜色附件和深度模板附件
+ * 配置附件描述、子通道和子通道依赖关系
+ */
 void VulkanExampleBase::setupRenderPass()
 {
 	std::array<VkAttachmentDescription, 2> attachments{
 		// Color attachment
+		// 颜色附件
 		VkAttachmentDescription{
-			.format = swapChain.colorFormat,
-			.samples = VK_SAMPLE_COUNT_1_BIT,
-			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-			.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+			.format = swapChain.colorFormat,  // 颜色格式
+			.samples = VK_SAMPLE_COUNT_1_BIT,  // 单采样
+			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,  // 加载操作：清除
+			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,  // 存储操作：存储
+			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,  // 模板加载操作：不关心
+			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,  // 模板存储操作：不关心
+			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,  // 初始布局：未定义
+			.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR  // 最终布局：呈现源
 		},
 		// Depth attachment
+		// 深度附件
 		VkAttachmentDescription{
-			.format = depthFormat,
-			.samples = VK_SAMPLE_COUNT_1_BIT,
-			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-			.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+			.format = depthFormat,  // 深度格式
+			.samples = VK_SAMPLE_COUNT_1_BIT,  // 单采样
+			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,  // 加载操作：清除
+			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,  // 存储操作：存储
+			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,  // 模板加载操作：清除
+			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,  // 模板存储操作：不关心
+			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,  // 初始布局：未定义
+			.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL  // 最终布局：深度模板附件最优
 		}
 	};
 
-	VkAttachmentReference colorReference{ .attachment = 0, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
-	VkAttachmentReference depthReference{ .attachment = 1, .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
+	VkAttachmentReference colorReference{ .attachment = 0, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };  // 颜色附件引用（索引 0）
+	VkAttachmentReference depthReference{ .attachment = 1, .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };  // 深度附件引用（索引 1）
 
 	VkSubpassDescription subpassDescription{
-		.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-		.colorAttachmentCount = 1,
-		.pColorAttachments = &colorReference,
-		.pDepthStencilAttachment = &depthReference,
+		.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,  // 图形管线绑定点
+		.colorAttachmentCount = 1,  // 颜色附件数量
+		.pColorAttachments = &colorReference,  // 颜色附件引用
+		.pDepthStencilAttachment = &depthReference,  // 深度模板附件引用
 	};
 
 	// Subpass dependencies for layout transitions
+	// 子通道依赖关系（用于布局转换）
 	std::array<VkSubpassDependency, 2> dependencies{
 		VkSubpassDependency{
-			.srcSubpass = VK_SUBPASS_EXTERNAL,
-			.dstSubpass = 0,
-			.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-			.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-			.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-			.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
+			.srcSubpass = VK_SUBPASS_EXTERNAL,  // 源子通道：外部
+			.dstSubpass = 0,  // 目标子通道：第一个子通道
+			.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,  // 源阶段：早期和晚期片段测试
+			.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,  // 目标阶段：早期和晚期片段测试
+			.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,  // 源访问：深度模板附件写入
+			.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,  // 目标访问：深度模板附件读写
 		},
 		VkSubpassDependency{
-			.srcSubpass = VK_SUBPASS_EXTERNAL,
-			.dstSubpass = 0,
-			.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-			.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-			.srcAccessMask = 0,
-			.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
+			.srcSubpass = VK_SUBPASS_EXTERNAL,  // 源子通道：外部
+			.dstSubpass = 0,  // 目标子通道：第一个子通道
+			.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,  // 源阶段：颜色附件输出
+			.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,  // 目标阶段：颜色附件输出
+			.srcAccessMask = 0,  // 源访问：无
+			.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,  // 目标访问：颜色附件读写
 		}
 	};
 
 	VkRenderPassCreateInfo renderPassInfo{
 		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-		.attachmentCount = static_cast<uint32_t>(attachments.size()),
-		.pAttachments = attachments.data(),
-		.subpassCount = 1,
-		.pSubpasses = &subpassDescription,
-		.dependencyCount = static_cast<uint32_t>(dependencies.size()),
-		.pDependencies = dependencies.data(),
+		.attachmentCount = static_cast<uint32_t>(attachments.size()),  // 附件数量
+		.pAttachments = attachments.data(),  // 附件数组
+		.subpassCount = 1,  // 子通道数量
+		.pSubpasses = &subpassDescription,  // 子通道描述
+		.dependencyCount = static_cast<uint32_t>(dependencies.size()),  // 依赖关系数量
+		.pDependencies = dependencies.data(),  // 依赖关系数组
 	};
-	VK_CHECK_RESULT(vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass));
+	VK_CHECK_RESULT(vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass));  // 创建渲染通道
 }
 
+/**
+ * @brief 获取启用的设备功能（虚函数，默认空实现）
+ * 读取物理设备功能后调用，可用于设置要在设备上启用的功能
+ * 可由派生类重写以启用特定功能
+ */
 void VulkanExampleBase::getEnabledFeatures() {}
 
+/**
+ * @brief 获取启用的设备扩展（虚函数，默认空实现）
+ * 读取物理设备扩展后调用，可根据支持的扩展列表启用扩展
+ * 可由派生类重写以启用特定扩展
+ */
 void VulkanExampleBase::getEnabledExtensions() {}
 
+/**
+ * @brief 窗口调整大小
+ * 当窗口大小改变时，重新创建交换链、深度模板缓冲区、帧缓冲区和同步原语
+ * 更新相机宽高比并通知派生类
+ */
 void VulkanExampleBase::windowResize()
 {
-	if (!prepared) {
-		return;
+	if (!prepared) {  // 如果未准备就绪
+		return;  // 直接返回
 	}
-	prepared = false;
-	resized = true;
+	prepared = false;  // 标记为未准备
+	resized = true;  // 标记为已调整大小
 
 	// Ensure all operations on the device have been finished before destroying resources
-	vkDeviceWaitIdle(device);
+	// 确保在销毁资源之前设备上的所有操作都已完成
+	vkDeviceWaitIdle(device);  // 等待设备空闲
 
 	// Recreate swap chain
-	width = destWidth;
-	height = destHeight;
-	createSwapChain();
+	// 重新创建交换链
+	width = destWidth;  // 更新宽度
+	height = destHeight;  // 更新高度
+	createSwapChain();  // 创建交换链
 
 	// Recreate the frame buffers
-	vkDestroyImageView(device, depthStencil.view, nullptr);
-	vkDestroyImage(device, depthStencil.image, nullptr);
-	vkFreeMemory(device, depthStencil.memory, nullptr);
-	setupDepthStencil();
-	for (auto& frameBuffer : frameBuffers) {
-		vkDestroyFramebuffer(device, frameBuffer, nullptr);
+	// 重新创建帧缓冲区
+	vkDestroyImageView(device, depthStencil.view, nullptr);  // 销毁深度模板图像视图
+	vkDestroyImage(device, depthStencil.image, nullptr);  // 销毁深度模板图像
+	vkFreeMemory(device, depthStencil.memory, nullptr);  // 释放深度模板内存
+	setupDepthStencil();  // 重新设置深度模板
+	for (auto& frameBuffer : frameBuffers) {  // 遍历所有帧缓冲区
+		vkDestroyFramebuffer(device, frameBuffer, nullptr);  // 销毁帧缓冲区
 	}
-	setupFrameBuffer();
+	setupFrameBuffer();  // 重新设置帧缓冲区
 
-	if ((width > 0.0f) && (height > 0.0f)) {
-		if (settings.overlay) {
-			ui.resize(width, height);
+	if ((width > 0.0f) && (height > 0.0f)) {  // 如果宽度和高度有效
+		if (settings.overlay) {  // 如果启用 UI 叠加层
+			ui.resize(width, height);  // 调整 UI 大小
 		}
 	}
 
-	for (auto& semaphore : presentCompleteSemaphores) {
-		vkDestroySemaphore(device, semaphore, nullptr);
+	// 重新创建同步原语
+	for (auto& semaphore : presentCompleteSemaphores) {  // 遍历所有呈现完成信号量
+		vkDestroySemaphore(device, semaphore, nullptr);  // 销毁信号量
 	}
-	for (auto& semaphore : renderCompleteSemaphores) {
-		vkDestroySemaphore(device, semaphore, nullptr);
+	for (auto& semaphore : renderCompleteSemaphores) {  // 遍历所有渲染完成信号量
+		vkDestroySemaphore(device, semaphore, nullptr);  // 销毁信号量
 	}
-	for (auto& fence : waitFences) {
-		vkDestroyFence(device, fence, nullptr);
+	for (auto& fence : waitFences) {  // 遍历所有等待栅栏
+		vkDestroyFence(device, fence, nullptr);  // 销毁栅栏
 	}
-	createSynchronizationPrimitives();
+	createSynchronizationPrimitives();  // 重新创建同步原语
 
-	vkDeviceWaitIdle(device);
+	vkDeviceWaitIdle(device);  // 等待设备空闲
 
-	if ((width > 0.0f) && (height > 0.0f)) {
-		camera.updateAspectRatio((float)width / (float)height);
+	if ((width > 0.0f) && (height > 0.0f)) {  // 如果宽度和高度有效
+		camera.updateAspectRatio((float)width / (float)height);  // 更新相机宽高比
 	}
 
 	// Notify derived class
-	windowResized();
+	// 通知派生类
+	windowResized();  // 调用虚函数（可由派生类重写）
 
-	prepared = true;
+	prepared = true;  // 标记为已准备
 }
 
+/**
+ * @brief 处理鼠标移动
+ * @param x 鼠标 X 坐标
+ * @param y 鼠标 Y 坐标
+ * 处理鼠标移动事件，包括 UI 交互和相机控制
+ * - 如果 UI 需要捕获鼠标，则只更新 UI
+ * - 否则根据鼠标按键状态控制相机（左键旋转、右键缩放、中键平移）
+ */
 void VulkanExampleBase::handleMouseMove(int32_t x, int32_t y)
 {
-	int32_t dx = (int32_t)mouseState.position.x - x;
-	int32_t dy = (int32_t)mouseState.position.y - y;
+	int32_t dx = (int32_t)mouseState.position.x - x;  // 计算 X 方向偏移
+	int32_t dy = (int32_t)mouseState.position.y - y;  // 计算 Y 方向偏移
 
-	bool handled = false;
+	bool handled = false;  // 是否已处理
 
-	if (settings.overlay) {
+	if (settings.overlay) {  // 如果启用 UI 叠加层
 		ImGuiIO& io = ImGui::GetIO();
-		handled = io.WantCaptureMouse && ui.visible;
+		handled = io.WantCaptureMouse && ui.visible;  // 检查 UI 是否需要捕获鼠标
 	}
-	mouseMoved((float)x, (float)y, handled);
+	mouseMoved((float)x, (float)y, handled);  // 调用虚函数（可由派生类重写）
 
-	if (handled) {
-		mouseState.position = glm::vec2((float)x, (float)y);
-		return;
+	if (handled) {  // 如果已处理（UI 捕获）
+		mouseState.position = glm::vec2((float)x, (float)y);  // 更新鼠标位置
+		return;  // 直接返回
 	}
 
-	if (mouseState.buttons.left) {
+	// 根据鼠标按键状态控制相机
+	if (mouseState.buttons.left) {  // 左键：旋转相机
 		camera.rotate(glm::vec3(dy * camera.rotationSpeed, -dx * camera.rotationSpeed, 0.0f));
 	}
-	if (mouseState.buttons.right) {
+	if (mouseState.buttons.right) {  // 右键：缩放（前后移动）
 		camera.translate(glm::vec3(-0.0f, 0.0f, dy * .005f));
 	}
-	if (mouseState.buttons.middle) {
+	if (mouseState.buttons.middle) {  // 中键：平移（左右上下移动）
 		camera.translate(glm::vec3(-dx * 0.005f, -dy * 0.005f, 0.0f));
 	}
-	mouseState.position = glm::vec2((float)x, (float)y);
+	mouseState.position = glm::vec2((float)x, (float)y);  // 更新鼠标位置
 }
 
+/**
+ * @brief 窗口调整大小回调（虚函数，默认空实现）
+ * 窗口调整大小完成后调用，可由派生类重写以处理窗口大小变化
+ */
 void VulkanExampleBase::windowResized() {}
 
+/**
+ * @brief 创建表面
+ * 根据平台创建 Vulkan 表面
+ * 不同平台使用不同的窗口系统接口创建表面
+ */
 void VulkanExampleBase::createSurface()
 {
 #if defined(_WIN32)
-	swapChain.initSurface(windowInstance, window);
+	swapChain.initSurface(windowInstance, window);  // Windows：使用窗口实例和句柄
 #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
-	swapChain.initSurface(androidApp->window);
+	swapChain.initSurface(androidApp->window);  // Android：使用 Android 窗口
 #elif (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK))
-	swapChain.initSurface(view);
+	swapChain.initSurface(view);  // iOS/macOS：使用视图
 #elif defined(VK_USE_PLATFORM_METAL_EXT)
-	swapChain.initSurface(metalLayer);
+	swapChain.initSurface(metalLayer);  // Metal：使用 Metal 层
 #elif defined(VK_USE_PLATFORM_DIRECTFB_EXT)
-	swapChain.initSurface(dfb, surface);
+	swapChain.initSurface(dfb, surface);  // DirectFB：使用 DirectFB 和表面
 #elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
-	swapChain.initSurface(display, surface);
+	swapChain.initSurface(display, surface);  // Wayland：使用显示和表面
 #elif defined(VK_USE_PLATFORM_XCB_KHR)
-	swapChain.initSurface(connection, window);
+	swapChain.initSurface(connection, window);  // XCB：使用连接和窗口
 #elif (defined(_DIRECT2DISPLAY) || defined(VK_USE_PLATFORM_HEADLESS_EXT))
-	swapChain.initSurface(width, height);
+	swapChain.initSurface(width, height);  // 直接显示/无头：使用宽度和高度
 #elif defined(VK_USE_PLATFORM_SCREEN_QNX)
-	swapChain.initSurface(screen_context, screen_window);
+	swapChain.initSurface(screen_context, screen_window);  // QNX Screen：使用屏幕上下文和窗口
 #endif
 }
 
+/**
+ * @brief 创建交换链
+ * 创建用于呈现的交换链
+ * @param width 窗口宽度
+ * @param height 窗口高度
+ * @param vsync 是否启用垂直同步
+ * @param fullscreen 是否全屏
+ */
 void VulkanExampleBase::createSwapChain()
 {
 	swapChain.create(width, height, settings.vsync, settings.fullscreen);
 }
 
+/**
+ * @brief UI 叠加层更新回调（虚函数，默认空实现）
+ * UI 叠加层更新时调用，可用于向叠加层添加自定义元素
+ * 可由派生类重写以添加自定义 UI 控件
+ * @param overlay UI 叠加层指针
+ */
 void VulkanExampleBase::OnUpdateUIOverlay(vks::UIOverlay *overlay) {}
 
 #if defined(_WIN32)
+/**
+ * @brief Windows 消息处理回调（虚函数，默认空实现）
+ * 处理 Windows 窗口消息，可由派生类重写以实现自定义消息处理
+ * @param hWnd 窗口句柄
+ * @param uMsg 消息类型
+ * @param wParam 消息参数
+ * @param lParam 消息参数
+ */
 void VulkanExampleBase::OnHandleMessage(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {};
 #endif
