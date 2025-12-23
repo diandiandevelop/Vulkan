@@ -217,45 +217,58 @@ namespace vks
 		buffers.resize(maxConcurrentFrames);
 	}
 
-	/** Prepare a separate pipeline for the UI overlay rendering decoupled from the main application */
+	/**
+	 * @brief 准备 UI 叠加层渲染管线
+	 * 创建与主应用程序解耦的单独管线，用于 UI 叠加层渲染
+	 * 
+	 * @param pipelineCache 管线缓存句柄，用于加速管线创建
+	 * @param renderPass 渲染通道句柄（如果使用动态渲染则为 VK_NULL_HANDLE）
+	 * @param colorFormat 颜色附件格式
+	 * @param depthFormat 深度附件格式
+	 */
 	void UIOverlay::preparePipeline(const VkPipelineCache pipelineCache, const VkRenderPass renderPass, const VkFormat colorFormat, const VkFormat depthFormat)
 	{
-		// Pipeline layout
-		// Push constants for UI rendering parameters
+		// 创建管线布局
+		// 推送常量用于 UI 渲染参数（缩放和平移）
 		VkPushConstantRange pushConstantRange{ .stageFlags = VK_SHADER_STAGE_VERTEX_BIT, .size = sizeof(PushConstBlock) };
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-			.setLayoutCount = 1,
-			.pSetLayouts = &descriptorSetLayout,
-			.pushConstantRangeCount = 1,
-			.pPushConstantRanges = &pushConstantRange
+			.setLayoutCount = 1,                              // 描述符集布局数量
+			.pSetLayouts = &descriptorSetLayout,               // 描述符集布局（字体纹理）
+			.pushConstantRangeCount = 1,                       // 推送常量范围数量
+			.pPushConstantRanges = &pushConstantRange          // 推送常量范围
 		};
+		// 创建管线布局
 		VK_CHECK_RESULT(vkCreatePipelineLayout(device->logicalDevice, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
 
-		// Setup graphics pipeline for UI rendering
+		// 设置 UI 渲染的图形管线状态
+		// 输入装配状态：三角形列表图元，无图元重启
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
+		// 光栅化状态：填充模式，无背面剔除，逆时针为正面
 		VkPipelineRasterizationStateCreateInfo rasterizationState = vks::initializers::pipelineRasterizationStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_NONE, VK_FRONT_FACE_COUNTER_CLOCKWISE);
 
-		// Enable blending
+		// 启用混合
+		// UI 渲染需要 Alpha 混合以实现透明效果
 		VkPipelineColorBlendAttachmentState blendAttachmentState{
-			.blendEnable = VK_TRUE,
-			.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
-			.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-			.colorBlendOp = VK_BLEND_OP_ADD,
-			.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-			.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-			.alphaBlendOp = VK_BLEND_OP_ADD,
-			.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
+			.blendEnable = VK_TRUE,                                    // 启用混合
+			.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,          // 源颜色混合因子：源 Alpha
+			.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, // 目标颜色混合因子：1 - 源 Alpha
+			.colorBlendOp = VK_BLEND_OP_ADD,                           // 颜色混合操作：相加
+			.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, // 源 Alpha 混合因子：1 - 源 Alpha
+			.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,                // 目标 Alpha 混合因子：0
+			.alphaBlendOp = VK_BLEND_OP_ADD,                           // Alpha 混合操作：相加
+			.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT  // 颜色写入掩码：所有分量
 		};
 
-		// Vertex bindings an attributes based on ImGui vertex definition
+		// 基于 ImGui 顶点定义的顶点绑定和属性
+		// ImDrawVert 包含位置、UV 坐标和颜色
 		std::vector<VkVertexInputBindingDescription> vertexInputBindings = {
-			{ .binding = 0, .stride = sizeof(ImDrawVert), .inputRate = VK_VERTEX_INPUT_RATE_VERTEX }
+			{ .binding = 0, .stride = sizeof(ImDrawVert), .inputRate = VK_VERTEX_INPUT_RATE_VERTEX }  // 绑定 0：每个顶点一个数据
 		};
 		std::vector<VkVertexInputAttributeDescription> vertexInputAttributes = {
-			{ .location = 0, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(ImDrawVert, pos) },
-			{ .location = 1, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(ImDrawVert, uv) },
-			{ .location = 2, .binding = 0, .format = VK_FORMAT_R8G8B8A8_UNORM, .offset = offsetof(ImDrawVert, col) },
+			{ .location = 0, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(ImDrawVert, pos) },  // 位置属性（location 0）：2D 浮点坐标
+			{ .location = 1, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(ImDrawVert, uv) },   // UV 坐标属性（location 1）：2D 浮点坐标
+			{ .location = 2, .binding = 0, .format = VK_FORMAT_R8G8B8A8_UNORM, .offset = offsetof(ImDrawVert, col) }, // 颜色属性（location 2）：RGBA8 归一化整数
 		};
 		VkPipelineVertexInputStateCreateInfo vertexInputState = vks::initializers::pipelineVertexInputStateCreateInfo();
 		vertexInputState.vertexBindingDescriptionCount = static_cast<uint32_t>(vertexInputBindings.size());
@@ -263,174 +276,251 @@ namespace vks
 		vertexInputState.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexInputAttributes.size());
 		vertexInputState.pVertexAttributeDescriptions = vertexInputAttributes.data();
 
+		// 颜色混合状态：1 个颜色附件，使用上述混合配置
 		VkPipelineColorBlendStateCreateInfo colorBlendState = vks::initializers::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
+		// 深度模板状态：禁用深度测试和模板测试（UI 通常不需要深度）
 		VkPipelineDepthStencilStateCreateInfo depthStencilState = vks::initializers::pipelineDepthStencilStateCreateInfo(VK_FALSE, VK_FALSE, VK_COMPARE_OP_ALWAYS);
+		// 视口状态：1 个视口和 1 个剪裁矩形（使用动态状态）
 		VkPipelineViewportStateCreateInfo viewportState = vks::initializers::pipelineViewportStateCreateInfo(1, 1, 0);
+		// 多重采样状态：使用指定的采样数
 		VkPipelineMultisampleStateCreateInfo multisampleState = vks::initializers::pipelineMultisampleStateCreateInfo(rasterizationSamples);
+		// 动态状态：视口和剪裁矩形在运行时设置
 		std::vector<VkDynamicState> dynamicStateEnables = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 		VkPipelineDynamicStateCreateInfo dynamicState = vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
+		// 图形管线创建信息
 		VkGraphicsPipelineCreateInfo pipelineCreateInfo{
 			.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-			.stageCount = static_cast<uint32_t>(shaders.size()),
-			.pStages = shaders.data(),
-			.pVertexInputState = &vertexInputState,
-			.pInputAssemblyState = &inputAssemblyState,
-			.pViewportState = &viewportState,
-			.pRasterizationState = &rasterizationState,
-			.pMultisampleState = &multisampleState,
-			.pDepthStencilState = &depthStencilState,
-			.pColorBlendState = &colorBlendState,
-			.pDynamicState = &dynamicState,
-			.layout = pipelineLayout,
-			.renderPass = renderPass,
-			.subpass = subpass,
+			.stageCount = static_cast<uint32_t>(shaders.size()),  // 着色器阶段数量
+			.pStages = shaders.data(),                             // 着色器阶段数组
+			.pVertexInputState = &vertexInputState,                 // 顶点输入状态
+			.pInputAssemblyState = &inputAssemblyState,            // 输入装配状态
+			.pViewportState = &viewportState,                      // 视口状态
+			.pRasterizationState = &rasterizationState,            // 光栅化状态
+			.pMultisampleState = &multisampleState,                 // 多重采样状态
+			.pDepthStencilState = &depthStencilState,               // 深度模板状态
+			.pColorBlendState = &colorBlendState,                   // 颜色混合状态
+			.pDynamicState = &dynamicState,                         // 动态状态
+			.layout = pipelineLayout,                              // 管线布局
+			.renderPass = renderPass,                               // 渲染通道（可能为 NULL）
+			.subpass = subpass,                                     // 子通道索引
 		};
 #if defined(VK_KHR_dynamic_rendering)
-		// If we are using dynamic rendering (renderPass is null), we must define color, depth and stencil attachments at pipeline create time
+		// 如果使用动态渲染（renderPass 为 NULL），必须在管线创建时定义颜色、深度和模板附件
 		VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo{};
 		if (renderPass == VK_NULL_HANDLE) {
 			pipelineRenderingCreateInfo = {
 				.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
-				.colorAttachmentCount = 1,
-				.pColorAttachmentFormats = &colorFormat,
-				.depthAttachmentFormat = depthFormat,
-				.stencilAttachmentFormat = depthFormat
+				.colorAttachmentCount = 1,                          // 颜色附件数量
+				.pColorAttachmentFormats = &colorFormat,            // 颜色附件格式
+				.depthAttachmentFormat = depthFormat,               // 深度附件格式
+				.stencilAttachmentFormat = depthFormat              // 模板附件格式（使用深度格式）
 			};
-			pipelineCreateInfo.pNext = &pipelineRenderingCreateInfo;
+			pipelineCreateInfo.pNext = &pipelineRenderingCreateInfo;  // 链接到扩展结构
 		}
 #endif
+		// 创建图形管线
 		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device->logicalDevice, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipeline));
 	}
 
-	/** Update vertex and index buffer containing the imGui elements when required */
+	/**
+	 * @brief 更新包含 ImGui 元素的顶点和索引缓冲区
+	 * 当需要时更新顶点和索引缓冲区，将 ImGui 的绘制数据复制到 GPU 缓冲区
+	 * 
+	 * @param currentBuffer 当前缓冲区索引（用于多缓冲）
+	 */
 	void UIOverlay::update(uint32_t currentBuffer)
 	{	
+		// 获取 ImGui 的绘制数据
 		ImDrawData* imDrawData = ImGui::GetDrawData();
 
+		// 如果没有绘制数据，直接返回
 		if (!imDrawData) {
 			return;
 		}
 
-		// Note: Alignment is done inside buffer creation
-		VkDeviceSize vertexBufferSize = imDrawData->TotalVtxCount * sizeof(ImDrawVert);
-		VkDeviceSize indexBufferSize = imDrawData->TotalIdxCount * sizeof(ImDrawIdx);
+		// 注意：对齐在缓冲区创建内部完成
+		// 计算所需的缓冲区大小
+		VkDeviceSize vertexBufferSize = imDrawData->TotalVtxCount * sizeof(ImDrawVert);  // 顶点缓冲区大小
+		VkDeviceSize indexBufferSize = imDrawData->TotalIdxCount * sizeof(ImDrawIdx);   // 索引缓冲区大小
 		
-		// Update buffers only if vertex or index count has been changed compared to current buffer size
+		// 如果顶点或索引数量为 0，直接返回
 		if ((vertexBufferSize == 0) || (indexBufferSize == 0)) {
 			return;
 		}
 
-		// Create buffers with multiple of a chunk size to minimize the need to recreate them
-		const VkDeviceSize chunkSize = 16384;
+		// 创建大小为块大小倍数的缓冲区，以最小化重新创建的需要
+		// 这减少了频繁的缓冲区重新分配，提高性能
+		const VkDeviceSize chunkSize = 16384;  // 块大小（16KB）
+		// 向上对齐到块大小的倍数
 		vertexBufferSize = ((vertexBufferSize + chunkSize - 1) / chunkSize) * chunkSize;
 		indexBufferSize = ((indexBufferSize + chunkSize - 1) / chunkSize) * chunkSize;
 
-		// Recreate vertex buffer only if necessary
+		// 仅在必要时重新创建顶点缓冲区
+		// 如果缓冲区不存在或大小不足，重新创建
 		if ((buffers[currentBuffer].vertexBuffer.buffer == VK_NULL_HANDLE) || (buffers[currentBuffer].vertexBuffer.size < vertexBufferSize)) {
+			// 取消映射并销毁旧缓冲区
 			buffers[currentBuffer].vertexBuffer.unmap();
 			buffers[currentBuffer].vertexBuffer.destroy();
+			// 创建新的顶点缓冲区（主机可见，用于 CPU 写入）
 			VK_CHECK_RESULT(device->createBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &buffers[currentBuffer].vertexBuffer, vertexBufferSize));
-			buffers[currentBuffer].vertexCount = imDrawData->TotalVtxCount;
+			buffers[currentBuffer].vertexCount = imDrawData->TotalVtxCount;  // 保存顶点数量
+			// 映射缓冲区以便写入
 			buffers[currentBuffer].vertexBuffer.map();
 		}
 
-		// Recreate index buffer only if necessary
+		// 仅在必要时重新创建索引缓冲区
+		// 如果缓冲区不存在或大小不足，重新创建
 		if ((buffers[currentBuffer].indexBuffer.buffer == VK_NULL_HANDLE) || (buffers[currentBuffer].indexBuffer.size < indexBufferSize)) {
+			// 取消映射并销毁旧缓冲区
 			buffers[currentBuffer].indexBuffer.unmap();
 			buffers[currentBuffer].indexBuffer.destroy();
+			// 创建新的索引缓冲区（主机可见，用于 CPU 写入）
 			VK_CHECK_RESULT(device->createBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &buffers[currentBuffer].indexBuffer, indexBufferSize));
-			buffers[currentBuffer].indexCount = imDrawData->TotalIdxCount;
+			buffers[currentBuffer].indexCount = imDrawData->TotalIdxCount;  // 保存索引数量
+			// 映射缓冲区以便写入
 			buffers[currentBuffer].indexBuffer.map();
 		}
 
-		// Upload data
-		ImDrawVert* vtxDst = (ImDrawVert*)buffers[currentBuffer].vertexBuffer.mapped;
-		ImDrawIdx* idxDst = (ImDrawIdx*)buffers[currentBuffer].indexBuffer.mapped;
+		// 上传数据
+		// 获取映射后的缓冲区指针
+		ImDrawVert* vtxDst = (ImDrawVert*)buffers[currentBuffer].vertexBuffer.mapped;  // 顶点数据目标指针
+		ImDrawIdx* idxDst = (ImDrawIdx*)buffers[currentBuffer].indexBuffer.mapped;      // 索引数据目标指针
 
+		// 遍历所有 ImGui 绘制列表，复制顶点和索引数据
 		for (int n = 0; n < imDrawData->CmdListsCount; n++) {
-			const ImDrawList* cmd_list = imDrawData->CmdLists[n];
+			const ImDrawList* cmd_list = imDrawData->CmdLists[n];  // 当前绘制列表
+			// 复制顶点数据
 			memcpy(vtxDst, cmd_list->VtxBuffer.Data, cmd_list->VtxBuffer.Size * sizeof(ImDrawVert));
+			// 复制索引数据
 			memcpy(idxDst, cmd_list->IdxBuffer.Data, cmd_list->IdxBuffer.Size * sizeof(ImDrawIdx));
+			// 更新目标指针位置
 			vtxDst += cmd_list->VtxBuffer.Size;
 			idxDst += cmd_list->IdxBuffer.Size;
 		}
 
-		// Flush to make writes visible to GPU
+		// 刷新以使写入对 GPU 可见
+		// 对于非一致性内存，需要显式刷新
 		buffers[currentBuffer].vertexBuffer.flush();
 		buffers[currentBuffer].indexBuffer.flush();
 	}
 
+	/**
+	 * @brief 绘制 UI（记录到命令缓冲区）
+	 * 将 UI 绘制命令记录到命令缓冲区，包括绑定管线、描述符集、顶点/索引缓冲区和绘制调用
+	 * 
+	 * @param commandBuffer 命令缓冲区句柄，用于记录绘制命令
+	 * @param currentBuffer 当前缓冲区索引（用于多缓冲）
+	 */
 	void UIOverlay::draw(const VkCommandBuffer commandBuffer, uint32_t currentBuffer)
 	{
+		// 获取 ImGui 的绘制数据
 		ImDrawData* imDrawData = ImGui::GetDrawData();
-		int32_t vertexOffset = 0;
-		int32_t indexOffset = 0;
+		int32_t vertexOffset = 0;  // 顶点偏移量
+		int32_t indexOffset = 0;    // 索引偏移量
 
+		// 如果没有绘制数据或绘制列表为空，直接返回
 		if ((!imDrawData) || (imDrawData->CmdListsCount == 0)) {
 			return;
 		}
 
+		// 如果缓冲区无效，直接返回
 		if (buffers[currentBuffer].vertexBuffer.buffer == VK_NULL_HANDLE || buffers[currentBuffer].indexBuffer.buffer == VK_NULL_HANDLE) {
 			return;
 		}
 
+		// 获取 ImGui IO 对象（用于获取显示尺寸）
 		ImGuiIO& io = ImGui::GetIO();
 		
+		// 绑定图形管线
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+		// 绑定描述符集（字体纹理）
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, NULL);
 
+		// 设置推送常量（缩放和平移）
+		// 缩放：将屏幕坐标转换为 NDC 坐标（-1 到 1）
 		pushConstBlock.scale = glm::vec2(2.0f / io.DisplaySize.x, 2.0f / io.DisplaySize.y);
+		// 平移：将屏幕坐标原点从左上角移到中心
 		pushConstBlock.translate = glm::vec2(-1.0f);
+		// 推送常量到着色器
 		vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstBlock), &pushConstBlock);
 
+		// 确保缓冲区有效
 		assert(buffers[currentBuffer].vertexBuffer.buffer != VK_NULL_HANDLE && buffers[currentBuffer].indexBuffer.buffer != VK_NULL_HANDLE);
 
-		VkDeviceSize offsets[1] = { 0 };
+		// 绑定顶点缓冲区
+		VkDeviceSize offsets[1] = { 0 };  // 偏移量数组
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &buffers[currentBuffer].vertexBuffer.buffer, offsets);
+		// 绑定索引缓冲区（16 位无符号整数索引）
 		vkCmdBindIndexBuffer(commandBuffer, buffers[currentBuffer].indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT16);
 
+		// 遍历所有绘制列表和绘制命令
 		for (int32_t i = 0; i < imDrawData->CmdListsCount; i++) {
-			const ImDrawList* cmd_list = imDrawData->CmdLists[i];
+			const ImDrawList* cmd_list = imDrawData->CmdLists[i];  // 当前绘制列表
+			// 遍历绘制列表中的所有绘制命令
 			for (int32_t j = 0; j < cmd_list->CmdBuffer.Size; j++) {
-				const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[j];
+				const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[j];  // 当前绘制命令
+				// 设置剪裁矩形（从 ImGui 的剪裁矩形转换）
 				VkRect2D scissorRect{
-					.offset = {.x = std::max((int32_t)(pcmd->ClipRect.x), 0), .y = std::max((int32_t)(pcmd->ClipRect.y), 0) },
-					.extent = {.width = (uint32_t)(pcmd->ClipRect.z - pcmd->ClipRect.x), .height = (uint32_t)(pcmd->ClipRect.w - pcmd->ClipRect.y) }
+					.offset = {.x = std::max((int32_t)(pcmd->ClipRect.x), 0), .y = std::max((int32_t)(pcmd->ClipRect.y), 0) },  // 偏移（确保非负）
+					.extent = {.width = (uint32_t)(pcmd->ClipRect.z - pcmd->ClipRect.x), .height = (uint32_t)(pcmd->ClipRect.w - pcmd->ClipRect.y) }  // 尺寸
 				};
+				// 设置剪裁矩形
 				vkCmdSetScissor(commandBuffer, 0, 1, &scissorRect);
+				// 执行索引绘制
+				// ElemCount: 索引数量，1: 实例数量，indexOffset: 索引偏移，vertexOffset: 顶点偏移，0: 第一个实例 ID
 				vkCmdDrawIndexed(commandBuffer, pcmd->ElemCount, 1, indexOffset, vertexOffset, 0);
+				// 更新索引偏移量
 				indexOffset += pcmd->ElemCount;
 			}
 #if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_METAL_EXT)) && TARGET_OS_SIMULATOR
-			// Apple Device Simulator does not support vkCmdDrawIndexed() with vertexOffset > 0, so rebind vertex buffer instead
+			// Apple 设备模拟器不支持 vertexOffset > 0 的 vkCmdDrawIndexed()，因此重新绑定顶点缓冲区
+			// 更新偏移量并重新绑定
 			offsets[0] += cmd_list->VtxBuffer.Size * sizeof(ImDrawVert);
 			vkCmdBindVertexBuffers(commandBuffer, 0, 1, &buffers[currentBuffer].vertexBuffer.buffer, offsets);
 #else
+			// 其他平台：更新顶点偏移量（使用 vertexOffset 参数）
 			vertexOffset += cmd_list->VtxBuffer.Size;
 #endif
 		}
 	}
 
+	/**
+	 * @brief 调整 UI 大小
+	 * 更新 ImGui 的显示尺寸以适应窗口大小变化
+	 * 
+	 * @param width 新的宽度（像素）
+	 * @param height 新的高度（像素）
+	 */
 	void UIOverlay::resize(uint32_t width, uint32_t height)
 	{
 		ImGuiIO& io = ImGui::GetIO();
+		// 更新 ImGui 的显示尺寸
 		io.DisplaySize = ImVec2((float)(width), (float)(height));
 	}
 
+	/**
+	 * @brief 释放所有资源
+	 * 销毁 UI 叠加层使用的所有 Vulkan 资源，包括缓冲区、图像、采样器、描述符和管线
+	 */
 	void UIOverlay::freeResources()
 	{
+		// 销毁所有帧的顶点和索引缓冲区
 		for (auto& buffer : buffers) {
-			buffer.vertexBuffer.destroy();
-			buffer.indexBuffer.destroy();
+			buffer.vertexBuffer.destroy();  // 销毁顶点缓冲区
+			buffer.indexBuffer.destroy();   // 销毁索引缓冲区
 		}
-		vkDestroyImageView(device->logicalDevice, fontView, nullptr);
-		vkDestroyImage(device->logicalDevice, fontImage, nullptr);
-		vkFreeMemory(device->logicalDevice, fontMemory, nullptr);
+		// 销毁字体相关资源
+		vkDestroyImageView(device->logicalDevice, fontView, nullptr);   // 销毁字体图像视图
+		vkDestroyImage(device->logicalDevice, fontImage, nullptr);      // 销毁字体图像
+		vkFreeMemory(device->logicalDevice, fontMemory, nullptr);       // 释放字体内存
+		// 销毁采样器
 		vkDestroySampler(device->logicalDevice, sampler, nullptr);
-		vkDestroyDescriptorSetLayout(device->logicalDevice, descriptorSetLayout, nullptr);
-		vkDestroyDescriptorPool(device->logicalDevice, descriptorPool, nullptr);
-		vkDestroyPipelineLayout(device->logicalDevice, pipelineLayout, nullptr);
-		vkDestroyPipeline(device->logicalDevice, pipeline, nullptr);
+		// 销毁描述符相关资源
+		vkDestroyDescriptorSetLayout(device->logicalDevice, descriptorSetLayout, nullptr);  // 销毁描述符集布局
+		vkDestroyDescriptorPool(device->logicalDevice, descriptorPool, nullptr);              // 销毁描述符池
+		// 销毁管线相关资源
+		vkDestroyPipelineLayout(device->logicalDevice, pipelineLayout, nullptr);  // 销毁管线布局
+		vkDestroyPipeline(device->logicalDevice, pipeline, nullptr);                // 销毁图形管线
 	}
 
 	bool UIOverlay::header(const char *caption)

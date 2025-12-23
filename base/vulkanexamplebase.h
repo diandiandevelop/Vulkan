@@ -78,21 +78,66 @@ constexpr uint32_t maxConcurrentFrames{ 2 };
 class VulkanExampleBase
 {
 private:
+	/**
+	 * @brief 获取窗口标题
+	 * @return 窗口标题字符串（包含示例标题、设备名称和 FPS）
+	 */
 	std::string getWindowTitle() const;
-	uint32_t destWidth{};
-	uint32_t destHeight{};
-	bool resizing = false;
+	uint32_t destWidth{};      // 目标宽度（用于窗口调整大小）
+	uint32_t destHeight{};     // 目标高度（用于窗口调整大小）
+	bool resizing = false;      // 是否正在调整大小
+	/**
+	 * @brief 处理鼠标移动
+	 * @param x 鼠标 X 坐标
+	 * @param y 鼠标 Y 坐标
+	 */
 	void handleMouseMove(int32_t x, int32_t y);
+	/**
+	 * @brief 处理下一帧
+	 * 更新计时器、FPS 计数和窗口标题
+	 */
 	void nextFrame();
+	/**
+	 * @brief 更新 UI 叠加层
+	 * 更新 ImGui 状态并渲染 UI
+	 */
 	void updateOverlay();
+	/**
+	 * @brief 创建管线缓存
+	 * 用于加速管线创建
+	 */
 	void createPipelineCache();
+	/**
+	 * @brief 创建命令池
+	 * 用于分配命令缓冲区
+	 */
 	void createCommandPool();
+	/**
+	 * @brief 创建同步原语
+	 * 创建信号量和栅栏，用于同步 CPU 和 GPU
+	 */
 	void createSynchronizationPrimitives();
+	/**
+	 * @brief 创建表面
+	 * 根据平台创建 Vulkan 表面
+	 */
 	void createSurface();
+	/**
+	 * @brief 创建交换链
+	 * 创建用于呈现的交换链
+	 */
 	void createSwapChain();
+	/**
+	 * @brief 创建命令缓冲区
+	 * 从命令池分配主命令缓冲区
+	 */
 	void createCommandBuffers();
+	/**
+	 * @brief 销毁命令缓冲区
+	 * 释放命令缓冲区回命令池
+	 */
 	void destroyCommandBuffers();
-	std::string shaderDir = "glsl";
+	std::string shaderDir = "glsl";  // 着色器目录名称
 protected:
 	// Returns the path to the root of the glsl, hlsl or slang shader directory.
 	// 返回 glsl、hlsl 或 slang 着色器目录根路径

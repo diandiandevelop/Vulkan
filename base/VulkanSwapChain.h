@@ -44,25 +44,82 @@ public:
 	uint32_t imageCount{ 0 };                           // 图像数量
 
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
+	/**
+	 * @brief 初始化 Windows 平台表面
+	 * 创建用于呈现的 Windows 平台表面
+	 * @param platformHandle 平台句柄（HINSTANCE）
+	 * @param platformWindow 平台窗口（HWND）
+	 */
 	void initSurface(void* platformHandle, void* platformWindow);
 #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
+	/**
+	 * @brief 初始化 Android 平台表面
+	 * 创建用于呈现的 Android 平台表面
+	 * @param window Android 原生窗口指针
+	 */
 	void initSurface(ANativeWindow* window);
 #elif defined(VK_USE_PLATFORM_DIRECTFB_EXT)
+	/**
+	 * @brief 初始化 DirectFB 平台表面
+	 * 创建用于呈现的 DirectFB 平台表面
+	 * @param dfb DirectFB 主接口指针
+	 * @param window DirectFB 表面指针
+	 */
 	void initSurface(IDirectFB* dfb, IDirectFBSurface* window);
 #elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
+	/**
+	 * @brief 初始化 Wayland 平台表面
+	 * 创建用于呈现的 Wayland 平台表面
+	 * @param display Wayland 显示对象
+	 * @param window Wayland 表面对象
+	 */
 	void initSurface(wl_display* display, wl_surface* window);
 #elif defined(VK_USE_PLATFORM_XCB_KHR)
+	/**
+	 * @brief 初始化 XCB 平台表面（Linux/X11）
+	 * 创建用于呈现的 XCB 平台表面
+	 * @param connection XCB 连接
+	 * @param window XCB 窗口 ID
+	 */
 	void initSurface(xcb_connection_t* connection, xcb_window_t window);
 #elif (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK))
+	/**
+	 * @brief 初始化 iOS/macOS 平台表面（使用 MoltenVK）
+	 * 创建用于呈现的 iOS/macOS 平台表面
+	 * @param view iOS/macOS 视图指针
+	 */
 	void initSurface(void* view);
 #elif defined(VK_USE_PLATFORM_METAL_EXT)
+	/**
+	 * @brief 初始化 Metal 平台表面
+	 * 创建用于呈现的 Metal 平台表面
+	 * @param metalLayer Metal 层指针
+	 */
 	void initSurface(CAMetalLayer* metalLayer);
 #elif (defined(_DIRECT2DISPLAY) || defined(VK_USE_PLATFORM_HEADLESS_EXT))
+	/**
+	 * @brief 初始化直接显示/无头平台表面
+	 * 创建用于呈现的直接显示或无头平台表面
+	 * @param width 表面宽度（像素）
+	 * @param height 表面高度（像素）
+	 */
 	void initSurface(uint32_t width, uint32_t height);
 #if defined(_DIRECT2DISPLAY)
+	/**
+	 * @brief 创建直接到显示器的表面
+	 * 使用 Vulkan 显示扩展创建直接输出到显示器的表面，绕过窗口系统
+	 * @param width 显示表面宽度（像素）
+	 * @param height 显示表面高度（像素）
+	 */
 	void createDirect2DisplaySurface(uint32_t width, uint32_t height);
 #endif
 #elif defined(VK_USE_PLATFORM_SCREEN_QNX)
+	/**
+	 * @brief 初始化 QNX Screen 平台表面
+	 * 创建用于呈现的 QNX Screen 平台表面
+	 * @param screen_context QNX Screen 上下文
+	 * @param screen_window QNX Screen 窗口
+	 */
 	void initSurface(screen_context_t screen_context, screen_window_t screen_window);
 #endif
 	/* Set the Vulkan objects required for swapchain creation and management, must be called before swapchain creation */
@@ -99,6 +156,10 @@ public:
 	* @return VkResult of the image acquisition
 	*/
 	VkResult acquireNextImage(VkSemaphore presentCompleteSemaphore, uint32_t& imageIndex);
-	/* Free all Vulkan resources acquired by the swapchain */
+	/**
+	 * @brief 清理交换链资源
+	 * 释放交换链和表面相关的所有 Vulkan 资源
+	 * 包括图像视图、交换链对象和表面对象
+	 */
 	void cleanup();
 };
