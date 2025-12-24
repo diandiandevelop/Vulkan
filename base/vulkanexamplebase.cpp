@@ -1184,47 +1184,65 @@ bool VulkanExampleBase::initVulkan()
 #endif
 
 	// If requested, we enable the default validation layers for debugging
+	// 如果启用了验证选项，则为调试启用默认的验证层
 	if (settings.validation)
 	{
+		// 为当前 Vulkan 实例设置调试回调和验证层
+		// Set up debug callbacks and validation layers for the current Vulkan instance
 		vks::debug::setupDebuging(instance);
 	}
 
 	// Physical device
-	uint32_t gpuCount = 0;
+	// 物理设备（GPU）
+	uint32_t gpuCount = 0;  // 可用物理设备数量
 	// Get number of available physical devices
+	// 查询可用的物理设备数量
 	VK_CHECK_RESULT(vkEnumeratePhysicalDevices(instance, &gpuCount, nullptr));
 	if (gpuCount == 0) {
+		// 如果没有找到支持 Vulkan 的设备，则直接终止程序
+		// Terminate if no device supporting Vulkan is found
 		vks::tools::exitFatal("No device with Vulkan support found", -1);
 		return false;
 	}
 	// Enumerate devices
-	std::vector<VkPhysicalDevice> physicalDevices(gpuCount);
+	// 枚举物理设备，获取所有可用的 VkPhysicalDevice
+	std::vector<VkPhysicalDevice> physicalDevices(gpuCount);  // 存放所有物理设备的列表
 	result = vkEnumeratePhysicalDevices(instance, &gpuCount, physicalDevices.data());
 	if (result != VK_SUCCESS) {
+		// 如果枚举物理设备失败，同样报错退出
+		// Exit with error information if enumeration fails
 		vks::tools::exitFatal("Could not enumerate physical devices : \n" + vks::tools::errorString(result), result);
 		return false;
 	}
 
 	// GPU selection
+	// GPU 选择逻辑
 
 	// Select physical device to be used for the Vulkan example
 	// Defaults to the first device unless specified by command line
-	uint32_t selectedDevice = 0;
+	// 选择要用于本示例的物理设备
+	// 如果没有通过命令行指定，则默认使用第 0 个设备
+	uint32_t selectedDevice = 0;  // 被选中的物理设备索引
 
 #if !defined(VK_USE_PLATFORM_ANDROID_KHR)
 	// GPU selection via command line argument
+	// 通过命令行参数选择 GPU（例如 --gpuselection N）
 	if (commandLineParser.isSet("gpuselection")) {
-		uint32_t index = commandLineParser.getValueAsInt("gpuselection", 0);
+		uint32_t index = commandLineParser.getValueAsInt("gpuselection", 0);  // 从命令行读取想要使用的 GPU 索引
 		if (index > gpuCount - 1) {
+			// 如果索引越界，则回退到设备 0，并打印提示信息
+			// Fallback to device 0 if requested index is out of range
 			std::cerr << "Selected device index " << index << " is out of range, reverting to device 0 (use -listgpus to show available Vulkan devices)" << "\n";
 		} else {
 			selectedDevice = index;
 		}
 	}
+	// 通过命令行参数打印所有可用 GPU 信息（名称、类型、API 版本）
+	// Print a list of all available Vulkan devices when requested via command line
 	if (commandLineParser.isSet("gpulist")) {
 		std::cout << "Available Vulkan devices" << "\n";
 		for (uint32_t i = 0; i < gpuCount; i++) {
-			VkPhysicalDeviceProperties deviceProperties;
+			VkPhysicalDeviceProperties deviceProperties{};  // 当前遍历设备的属性
 			vkGetPhysicalDeviceProperties(physicalDevices[i], &deviceProperties);
 			std::cout << "Device [" << i << "] : " << deviceProperties.deviceName << std::endl;
 			std::cout << " Type: " << vks::tools::physicalDeviceTypeString(deviceProperties.deviceType) << "\n";
@@ -1233,44 +1251,60 @@ bool VulkanExampleBase::initVulkan()
 	}
 #endif
 
+	// 根据最终确定的索引选择要使用的物理设备
+	// Select the physical device according to the chosen index
 	physicalDevice = physicalDevices[selectedDevice];
 
 	// Store properties (including limits), features and memory properties of the physical device (so that examples can check against them)
+	// 获取并缓存物理设备的属性（包括各类限制）、支持的特性和内存属性，供后续示例查询和使用
 	vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
 	vkGetPhysicalDeviceFeatures(physicalDevice, &deviceFeatures);
 	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &deviceMemoryProperties);
 
 	// Derived examples can override this to set actual features (based on above readings) to enable for logical device creation
+	// 派生示例可以重写该函数，根据上面读取到的特性，选择要在逻辑设备中启用的功能
 	getEnabledFeatures();
 
 	// Vulkan device creation
 	// This is handled by a separate class that gets a logical device representation
 	// and encapsulates functions related to a device
+	// Vulkan 设备创建
+	// 由封装类 vks::VulkanDevice 负责创建逻辑设备并封装与设备相关的操作
 	vulkanDevice = new vks::VulkanDevice(physicalDevice);
 
 	// Derived examples can enable extensions based on the list of supported extensions read from the physical device
+	// 派生示例可以根据物理设备支持的扩展列表，决定需要启用哪些设备扩展
 	getEnabledExtensions();
 
+	// 创建逻辑设备，并启用之前选定的特性和扩展
+	// Create the logical device using the selected features and extensions
 	result = vulkanDevice->createLogicalDevice(enabledFeatures, enabledDeviceExtensions, deviceCreatepNextChain);
 	if (result != VK_SUCCESS) {
 		vks::tools::exitFatal("Could not create Vulkan device: \n" + vks::tools::errorString(result), result);
 		return false;
 	}
+	// 缓存 VkDevice 句柄，便于后续直接使用
+	// Cache the VkDevice handle for further use
 	device = vulkanDevice->logicalDevice;
 
 	// Get a graphics queue from the device
+	// 从逻辑设备中获取一个图形队列，用于提交渲染命令
 	vkGetDeviceQueue(device, vulkanDevice->queueFamilyIndices.graphics, 0, &queue);
 
 	// Find a suitable depth and/or stencil format
-	VkBool32 validFormat{ false };
+	// 查找一个合适的深度 / 深度+模板格式
+	VkBool32 validFormat{ false };  // 是否找到合适的格式
 	// Samples that make use of stencil will require a depth + stencil format, so we select from a different list
+	// 如果当前示例需要使用模板缓冲，则需要一个同时包含深度和模板的格式，否则只需要深度格式
 	if (requiresStencil) {
 		validFormat = vks::tools::getSupportedDepthStencilFormat(physicalDevice, &depthFormat);
 	} else {
 		validFormat = vks::tools::getSupportedDepthFormat(physicalDevice, &depthFormat);
 	}
+	// 断言确保一定找到可用的深度（和模板）格式
 	assert(validFormat);
 
+	// 为交换链设置上下文（实例、物理设备、逻辑设备），便于后续创建和管理 Swapchain
 	swapChain.setContext(instance, physicalDevice, device);
 
 	return true;
