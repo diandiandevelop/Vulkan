@@ -564,140 +564,193 @@ namespace vks
 
 	/** 
 	* Create a command pool for allocation command buffers from
+	* 创建用于分配命令缓冲区的命令池
 	* 
 	* @param queueFamilyIndex Family index of the queue to create the command pool for
+	* @param queueFamilyIndex 要为其创建命令池的队列族索引
 	* @param createFlags (Optional) Command pool creation flags (Defaults to VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT)
+	* @param createFlags (可选) 命令池创建标志（默认为 VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT）
 	*
 	* @note Command buffers allocated from the created pool can only be submitted to a queue with the same family index
+	* @note 从创建的池中分配的命令缓冲区只能提交到具有相同族索引的队列
 	*
 	* @return A handle to the created command buffer
+	* @return 创建的命令缓冲区句柄
 	*/
 	VkCommandPool VulkanDevice::createCommandPool(uint32_t queueFamilyIndex, VkCommandPoolCreateFlags createFlags)
 	{
 		VkCommandPoolCreateInfo cmdPoolInfo{
-			.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-			.flags = createFlags,
-			.queueFamilyIndex = queueFamilyIndex
+			.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,  // 结构体类型
+			.flags = createFlags,                                  // 创建标志
+			.queueFamilyIndex = queueFamilyIndex                    // 队列族索引
 		};
 		VkCommandPool cmdPool;
-		VK_CHECK_RESULT(vkCreateCommandPool(logicalDevice, &cmdPoolInfo, nullptr, &cmdPool));
-		return cmdPool;
+		VK_CHECK_RESULT(vkCreateCommandPool(logicalDevice, &cmdPoolInfo, nullptr, &cmdPool));  // 创建命令池
+		return cmdPool;  // 返回命令池句柄
 	}
 
 	/**
 	* Allocate a command buffer from the command pool
+	* 从命令池分配命令缓冲区
 	*
 	* @param level Level of the new command buffer (primary or secondary)
+	* @param level 新命令缓冲区的级别（主级或次级）
 	* @param pool Command pool from which the command buffer will be allocated
+	* @param pool 将从中分配命令缓冲区的命令池
 	* @param (Optional) begin If true, recording on the new command buffer will be started (vkBeginCommandBuffer) (Defaults to false)
+	* @param begin (可选) 如果为 true，将在新命令缓冲区上开始记录（vkBeginCommandBuffer）（默认为 false）
 	*
 	* @return A handle to the allocated command buffer
+	* @return 分配的命令缓冲区句柄
 	*/
 	VkCommandBuffer VulkanDevice::createCommandBuffer(VkCommandBufferLevel level, VkCommandPool pool, bool begin)
 	{
-		VkCommandBufferAllocateInfo cmdBufAllocateInfo = vks::initializers::commandBufferAllocateInfo(pool, level, 1);
+		VkCommandBufferAllocateInfo cmdBufAllocateInfo = vks::initializers::commandBufferAllocateInfo(pool, level, 1);  // 命令缓冲区分配信息
 		VkCommandBuffer cmdBuffer;
-		VK_CHECK_RESULT(vkAllocateCommandBuffers(logicalDevice, &cmdBufAllocateInfo, &cmdBuffer));
+		VK_CHECK_RESULT(vkAllocateCommandBuffers(logicalDevice, &cmdBufAllocateInfo, &cmdBuffer));  // 分配命令缓冲区
 		// If requested, also start recording for the new command buffer
+		// 如果请求，同时开始在新命令缓冲区上记录
 		if (begin)
 		{
-			VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
-			VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
+			VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();  // 命令缓冲区开始信息
+			VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));  // 开始命令缓冲区记录
 		}
-		return cmdBuffer;
+		return cmdBuffer;  // 返回命令缓冲区句柄
 	}
 			
+	/**
+	* Allocate a command buffer from the default command pool
+	* 从默认命令池分配命令缓冲区
+	*
+	* @param level Level of the new command buffer (primary or secondary)
+	* @param level 新命令缓冲区的级别（主级或次级）
+	* @param begin If true, recording on the new command buffer will be started (Defaults to false)
+	* @param begin 如果为 true，将在新命令缓冲区上开始记录（默认为 false）
+	*
+	* @return A handle to the allocated command buffer
+	* @return 分配的命令缓冲区句柄
+	*/
 	VkCommandBuffer VulkanDevice::createCommandBuffer(VkCommandBufferLevel level, bool begin)
 	{
-		return createCommandBuffer(level, commandPool, begin);
+		return createCommandBuffer(level, commandPool, begin);  // 使用默认命令池创建命令缓冲区
 	}
 
 	/**
 	* Finish command buffer recording and submit it to a queue
+	* 完成命令缓冲区记录并将其提交到队列
 	*
 	* @param commandBuffer Command buffer to flush
+	* @param commandBuffer 要刷新的命令缓冲区
 	* @param queue Queue to submit the command buffer to
+	* @param queue 要将命令缓冲区提交到的队列
 	* @param pool Command pool on which the command buffer has been created
+	* @param pool 创建命令缓冲区的命令池
 	* @param free (Optional) Free the command buffer once it has been submitted (Defaults to true)
+	* @param free (可选) 提交后释放命令缓冲区（默认为 true）
 	*
 	* @note The queue that the command buffer is submitted to must be from the same family index as the pool it was allocated from
+	* @note 命令缓冲区提交到的队列必须与分配它的池具有相同的族索引
 	* @note Uses a fence to ensure command buffer has finished executing
+	* @note 使用栅栏确保命令缓冲区已完成执行
 	*/
 	void VulkanDevice::flushCommandBuffer(VkCommandBuffer commandBuffer, VkQueue queue, VkCommandPool pool, bool free)
 	{
-		if (commandBuffer == VK_NULL_HANDLE)
+		if (commandBuffer == VK_NULL_HANDLE)  // 检查命令缓冲区是否有效
 		{
 			return;
 		}
 
-		VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffer));
+		VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffer));  // 结束命令缓冲区记录
 
 		VkSubmitInfo submitInfo{
-			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-			.commandBufferCount = 1,
-			.pCommandBuffers = &commandBuffer
+			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,  // 结构体类型
+			.commandBufferCount = 1,                  // 命令缓冲区数量
+			.pCommandBuffers = &commandBuffer         // 命令缓冲区数组
 		};
 		// Create fence to ensure that the command buffer has finished executing
-		VkFenceCreateInfo fenceInfo = vks::initializers::fenceCreateInfo(VK_FLAGS_NONE);
+		// 创建栅栏以确保命令缓冲区已完成执行
+		VkFenceCreateInfo fenceInfo = vks::initializers::fenceCreateInfo(VK_FLAGS_NONE);  // 栅栏创建信息
 		VkFence fence;
-		VK_CHECK_RESULT(vkCreateFence(logicalDevice, &fenceInfo, nullptr, &fence));
+		VK_CHECK_RESULT(vkCreateFence(logicalDevice, &fenceInfo, nullptr, &fence));  // 创建栅栏
 		// Submit to the queue
-		VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, fence));
+		// 提交到队列
+		VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, fence));  // 提交命令缓冲区到队列
 		// Wait for the fence to signal that command buffer has finished executing
-		VK_CHECK_RESULT(vkWaitForFences(logicalDevice, 1, &fence, VK_TRUE, DEFAULT_FENCE_TIMEOUT));
-		vkDestroyFence(logicalDevice, fence, nullptr);
+		// 等待栅栏发出信号，表示命令缓冲区已完成执行
+		VK_CHECK_RESULT(vkWaitForFences(logicalDevice, 1, &fence, VK_TRUE, DEFAULT_FENCE_TIMEOUT));  // 等待栅栏
+		vkDestroyFence(logicalDevice, fence, nullptr);  // 销毁栅栏
 		if (free)
 		{
-			vkFreeCommandBuffers(logicalDevice, pool, 1, &commandBuffer);
+			vkFreeCommandBuffers(logicalDevice, pool, 1, &commandBuffer);  // 释放命令缓冲区
 		}
 	}
 
+	/**
+	* Finish command buffer recording and submit it to a queue (using default command pool)
+	* 完成命令缓冲区记录并将其提交到队列（使用默认命令池）
+	*
+	* @param commandBuffer Command buffer to flush
+	* @param commandBuffer 要刷新的命令缓冲区
+	* @param queue Queue to submit the command buffer to
+	* @param queue 要将命令缓冲区提交到的队列
+	* @param free (Optional) Free the command buffer once it has been submitted (Defaults to true)
+	* @param free (可选) 提交后释放命令缓冲区（默认为 true）
+	*/
 	void VulkanDevice::flushCommandBuffer(VkCommandBuffer commandBuffer, VkQueue queue, bool free)
 	{
-		return flushCommandBuffer(commandBuffer, queue, commandPool, free);
+		return flushCommandBuffer(commandBuffer, queue, commandPool, free);  // 使用默认命令池刷新命令缓冲区
 	}
 
 	/**
 	* Check if an extension is supported by the (physical device)
+	* 检查（物理设备）是否支持某个扩展
 	*
 	* @param extension Name of the extension to check
+	* @param extension 要检查的扩展名称
 	*
 	* @return True if the extension is supported (present in the list read at device creation time)
+	* @return 如果扩展受支持（在设备创建时读取的列表中存在），返回 true
 	*/
 	bool VulkanDevice::extensionSupported(std::string extension)
 	{
-		return (std::find(supportedExtensions.begin(), supportedExtensions.end(), extension) != supportedExtensions.end());
+		return (std::find(supportedExtensions.begin(), supportedExtensions.end(), extension) != supportedExtensions.end());  // 在支持的扩展列表中查找
 	}
 
 	/**
 	* Select the best-fit depth format for this device from a list of possible depth (and stencil) formats
+	* 从可能的深度（和模板）格式列表中为当前设备选择最适合的深度格式
 	*
 	* @param checkSamplingSupport Check if the format can be sampled from (e.g. for shader reads)
+	* @param checkSamplingSupport 检查格式是否可以被采样（例如用于着色器读取）
 	*
 	* @return The depth format that best fits for the current device
+	* @return 最适合当前设备的深度格式
 	*
 	* @throw Throws an exception if no depth format fits the requirements
+	* @throw 如果没有深度格式符合要求，则抛出异常
 	*/
 	VkFormat VulkanDevice::getSupportedDepthFormat(bool checkSamplingSupport)
 	{
 		// All depth formats may be optional, so we need to find a suitable depth format to use
-		std::vector<VkFormat> depthFormats = { VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D32_SFLOAT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D16_UNORM_S8_UINT, VK_FORMAT_D16_UNORM };
+		// 所有深度格式都可能是可选的，因此我们需要找到合适的深度格式来使用
+		std::vector<VkFormat> depthFormats = { VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D32_SFLOAT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D16_UNORM_S8_UINT, VK_FORMAT_D16_UNORM };  // 深度格式列表（按优先级排序）
 		for (auto& format : depthFormats)
 		{
 			VkFormatProperties formatProperties;
-			vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &formatProperties);
+			vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &formatProperties);  // 查询格式属性
 			// Format must support depth stencil attachment for optimal tiling
+			// 格式必须支持深度模板附件以用于最佳平铺
 			if (formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
 			{
-				if (checkSamplingSupport) {
-					if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) {
-						continue;
+				if (checkSamplingSupport) {  // 如果需要检查采样支持
+					if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) {  // 如果不支持采样
+						continue;  // 跳过此格式
 					}
 				}
-				return format;
+				return format;  // 返回找到的格式
 			}
 		}
-		throw std::runtime_error("Could not find a matching depth format");
+		throw std::runtime_error("Could not find a matching depth format");  // 未找到匹配的深度格式，抛出异常
 	}
 
 };
