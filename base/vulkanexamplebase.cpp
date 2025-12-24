@@ -1,4 +1,4 @@
-/*
+﻿/*
 * Vulkan Example base class
 *
 * Copyright (C) 2016-2025 by Sascha Willems - www.saschawillems.de
@@ -1186,7 +1186,7 @@ bool VulkanExampleBase::initVulkan()
 	// If requested, we enable the default validation layers for debugging
 	if (settings.validation)
 	{
-		vks::debug::setupDebugging(instance);
+		vks::debug::setupDebuging(instance);
 	}
 
 	// Physical device
