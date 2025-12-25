@@ -17,6 +17,7 @@
 #include <assert.h>
 #include <fstream>
 #include <vector>
+#include <array>
 #include <exception>
 
 #define GLM_FORCE_RADIANS
@@ -444,7 +445,7 @@ public:
 		// Index buffer
 		// 索引缓冲区复制
 		copyRegion.size = indexBufferSize;  // 复制大小（索引缓冲区大小）
-		vkCmdCopyBuffer(copyCmd, stagingBuffers.indices.buffer, indices.buffer,	1, &copyRegion);  // 记录复制命令：从暂存缓冲区复制到设备本地缓冲区
+		vkCmdCopyBuffer(copyCmd, stagingBuffers.indices.buffer, indices.buffer, 1, &copyRegion);  // 记录复制命令：从暂存缓冲区复制到设备本地缓冲区
 		VK_CHECK_RESULT(vkEndCommandBuffer(copyCmd));  // 结束记录命令缓冲区
 
 		// Submit the command buffer to the queue to finish the copy
