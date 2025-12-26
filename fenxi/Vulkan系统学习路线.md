@@ -1340,3 +1340,29 @@ vkGetRayTracingShaderGroupHandlesKHR
 
 如有问题，请查阅相关详细分析文档或 Vulkan 官方规范。
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

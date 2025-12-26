@@ -19,9 +19,11 @@
    - [内存类型层次](#内存类型层次)
    - [缓冲区创建与内存绑定流程](#缓冲区创建与内存绑定流程)
    - [暂存缓冲区模式](#暂存缓冲区模式)
-7. [同步机制](#同步机制)
-   - [同步对象类型](#同步对象类型)
-   - [渲染循环中的同步关系](#渲染循环中的同步关系)
+7. [同步管理系统](#同步管理系统)
+   - [同步原语类型与用途](#同步原语类型与用途)
+   - [同步对象创建流程](#同步对象创建流程)
+   - [渲染循环中的同步流程](#渲染循环中的同步流程)
+   - [多帧并发同步策略](#多帧并发同步策略)
 8. [命令提交流程](#命令提交流程)
    - [命令缓冲区生命周期](#命令缓冲区生命周期)
    - [命令提交与执行流程](#命令提交与执行流程)
@@ -483,45 +485,6 @@ flowchart TD
     style QueueSubmit fill:#DDA0DD
     style QueuePresent fill:#FFE4B5
 ```
-
-### 渲染循环中的同步关系
-
-```mermaid
-sequenceDiagram
-    participant CPU as CPU线程
-    participant Queue as 图形队列
-    participant GPU as GPU
-    participant SwapChain as 交换链
-    
-    Note over CPU,SwapChain: 帧 N 渲染流程 (currentFrame = 0)
-    
-    CPU->>Queue: 1. vkWaitForFences<br/>等待waitFences[0]
-    Queue-->>CPU: 栅栏已发出信号<br/>命令缓冲区[0]可用
-    
-    CPU->>SwapChain: 2. vkAcquireNextImageKHR<br/>等待presentCompleteSemaphores[0]
-    SwapChain-->>CPU: 返回imageIndex<br/>发出presentCompleteSemaphores[0]信号
-    
-    CPU->>CPU: 3. 更新uniformBuffers[0].mapped<br/>memcpy ShaderData
-    
-    CPU->>CPU: 4. 记录命令缓冲区[0]<br/>vkBeginCommandBuffer到vkEndCommandBuffer
-    
-    CPU->>Queue: 5. vkQueueSubmit<br/>等待presentCompleteSemaphores[0]<br/>发出renderCompleteSemaphores[imageIndex]<br/>关联waitFences[0]
-    Queue->>GPU: 6. GPU开始执行命令
-    GPU->>GPU: 7. GPU执行渲染命令
-    GPU-->>Queue: 8. 执行完成<br/>发出renderCompleteSemaphores[imageIndex]信号<br/>发出waitFences[0]信号
-    
-    CPU->>SwapChain: 9. vkQueuePresentKHR<br/>等待renderCompleteSemaphores[imageIndex]
-    SwapChain-->>CPU: 10. 图像已呈现到窗口
-    
-    CPU->>CPU: 11. currentFrame = 1<br/>准备下一帧
-    
-    Note over CPU,SwapChain: 帧 N+1 渲染流程 (currentFrame = 1)
-    
-    CPU->>Queue: 1. vkWaitForFences<br/>等待waitFences[1]
-    Note over CPU,SwapChain: 同时，帧N的命令可能仍在GPU执行中
-```
-
----
 
 ## 对象模型详解
 
@@ -1182,6 +1145,343 @@ triangle.cpp 使用 `getMemoryTypeIndex()` 函数根据内存类型位掩码和�
 
 ---
 
+## 同步管理系统（基于 triangle.cpp）
+
+triangle.cpp 中的同步管理确保 CPU 和 GPU 之间、GPU 内部不同操作之间的正确协调，实现多帧并发渲染和资源安全访问。
+
+### 同步原语类型与用途
+
+triangle.cpp 使用了两种同步原语：栅栏（Fence）和信号量（Semaphore），每种都有特定的用途和特点。
+
+```mermaid
+graph TB
+    subgraph "triangle.cpp 中的同步原语"
+        Fence[栅栏 VkFence<br/>CPU-GPU同步<br/>等待命令缓冲区完成]
+        PresentSem[呈现完成信号量<br/>VkSemaphore<br/>等待交换链图像可用]
+        RenderSem[渲染完成信号量<br/>VkSemaphore<br/>等待渲染完成]
+    end
+    
+    subgraph "栅栏用途"
+        FenceWait[等待命令缓冲区完成<br/>vkWaitForFences]
+        FenceReset[重置栅栏<br/>vkResetFences]
+        FenceProtect[保护资源重用<br/>确保命令缓冲区可用]
+    end
+    
+    subgraph "信号量用途"
+        SemAcquire[获取交换链图像<br/>vkAcquireNextImageKHR<br/>等待presentCompleteSemaphore]
+        SemSubmit[提交命令缓冲区<br/>vkQueueSubmit<br/>等待presentCompleteSemaphore<br/>发出renderCompleteSemaphore]
+        SemPresent[呈现图像<br/>vkQueuePresentKHR<br/>等待renderCompleteSemaphore]
+    end
+    
+    Fence --> FenceWait
+    Fence --> FenceReset
+    Fence --> FenceProtect
+    
+    PresentSem --> SemAcquire
+    PresentSem --> SemSubmit
+    RenderSem --> SemSubmit
+    RenderSem --> SemPresent
+    
+    style Fence fill:#87CEEB
+    style PresentSem fill:#FFB6C1
+    style RenderSem fill:#FFB6C1
+```
+
+**栅栏（VkFence）特点：**
+- **用途**：CPU 和 GPU 之间的同步
+- **特点**：可以从 CPU 查询状态，可以等待完成
+- **在 triangle.cpp 中**：`waitFences` 数组，每帧一个，用于确保命令缓冲区在重用前已完成执行
+- **创建标志**：`VK_FENCE_CREATE_SIGNALED_BIT`，初始状态为已发出信号，第一帧不需要等待
+
+**信号量（VkSemaphore）特点：**
+- **用途**：GPU 内部操作之间的同步
+- **特点**：只能在 GPU 内部使用，不能从 CPU 查询状态
+- **在 triangle.cpp 中**：
+  - `presentCompleteSemaphores`：每帧一个，等待交换链图像可用于呈现
+  - `renderCompleteSemaphores`：每个交换链图像一个，通知渲染完成
+
+### 同步对象创建流程
+
+**执行时机**：在 `prepare()` 函数中，通过 `createSynchronizationPrimitives()` 创建所有同步对象。
+
+**完整流程：**
+
+```mermaid
+flowchart TD
+    Start([createSynchronizationPrimitives开始]) --> CreateFences[1. 创建栅栏数组<br/>循环MAX_CONCURRENT_FRAMES次<br/>vkCreateFence<br/>flags: VK_FENCE_CREATE_SIGNALED_BIT<br/>初始状态为已发出信号]
+    
+    CreateFences --> CreatePresentSem[2. 创建呈现完成信号量数组<br/>调整数组大小为MAX_CONCURRENT_FRAMES<br/>循环创建每个信号量<br/>vkCreateSemaphore]
+    
+    CreatePresentSem --> CreateRenderSem[3. 创建渲染完成信号量数组<br/>调整数组大小为swapChain.images.size<br/>循环创建每个信号量<br/>vkCreateSemaphore<br/>每个交换链图像一个]
+    
+    CreateRenderSem --> End([同步对象创建完成<br/>- waitFences: MAX_CONCURRENT_FRAMES个<br/>- presentCompleteSemaphores: MAX_CONCURRENT_FRAMES个<br/>- renderCompleteSemaphores: swapChain.images.size个])
+    
+    style CreateFences fill:#87CEEB
+    style CreatePresentSem fill:#FFB6C1
+    style CreateRenderSem fill:#FFB6C1
+```
+
+**关键特点：**
+- **栅栏数组**：`MAX_CONCURRENT_FRAMES`（2）个，每帧一个
+  - 初始状态为已发出信号，第一帧不需要等待
+  - 用于保护命令缓冲区重用
+- **呈现完成信号量数组**：`MAX_CONCURRENT_FRAMES`（2）个，每帧一个
+  - 用于等待交换链图像可用
+  - 在 `vkAcquireNextImageKHR` 中使用
+- **渲染完成信号量数组**：`swapChain.images.size()` 个，每个交换链图像一个
+  - 用于通知渲染完成
+  - 在 `vkQueueSubmit` 中发出信号，在 `vkQueuePresentKHR` 中等待
+
+### 渲染循环中的同步流程
+
+**执行时机**：每帧在 `render()` 函数中执行，完整的同步协调流程。
+
+**完整流程：**
+
+```mermaid
+flowchart TD
+    Start([render函数开始]) --> WaitFence["1. 等待栅栏<br/>vkWaitForFences<br/>等待waitFences索引currentFrame<br/>确保命令缓冲区已完成执行"]
+    
+    WaitFence --> ResetFence["2. 重置栅栏<br/>vkResetFences<br/>重置waitFences索引currentFrame<br/>准备下一帧使用"]
+    
+    ResetFence --> AcquireImage["3. 获取交换链图像<br/>vkAcquireNextImageKHR<br/>等待presentCompleteSemaphores索引currentFrame<br/>返回imageIndex<br/>交换链在图像可用时发出信号"]
+    
+    AcquireImage --> UpdateUBO["4. 更新统一缓冲区<br/>memcpy到uniformBuffers索引currentFrame的mapped指针"]
+    
+    UpdateUBO --> RecordCmd["5. 记录命令缓冲区<br/>vkBeginCommandBuffer到vkEndCommandBuffer<br/>记录渲染命令"]
+    
+    RecordCmd --> SetupSubmit["6. 设置提交信息<br/>VkSubmitInfo<br/>waitSemaphore: presentCompleteSemaphores索引currentFrame<br/>waitStageMask: COLOR_ATTACHMENT_OUTPUT<br/>signalSemaphore: renderCompleteSemaphores索引imageIndex<br/>fence: waitFences索引currentFrame"]
+    
+    SetupSubmit --> QueueSubmit["7. 提交到队列<br/>vkQueueSubmit<br/>等待presentCompleteSemaphore<br/>发出renderCompleteSemaphore<br/>关联waitFences索引currentFrame"]
+    
+    QueueSubmit --> GPUExec["8. GPU执行命令<br/>在COLOR_ATTACHMENT_OUTPUT阶段等待信号量<br/>执行渲染命令<br/>完成后发出renderCompleteSemaphore和栅栏信号"]
+    
+    GPUExec --> SetupPresent["9. 设置呈现信息<br/>VkPresentInfoKHR<br/>waitSemaphore: renderCompleteSemaphores索引imageIndex"]
+    
+    SetupPresent --> QueuePresent["10. 呈现图像<br/>vkQueuePresentKHR<br/>等待renderCompleteSemaphore<br/>确保渲染完成后才呈现"]
+    
+    QueuePresent --> UpdateFrame["11. 更新当前帧索引<br/>currentFrame = currentFrame + 1<br/>模MAX_CONCURRENT_FRAMES<br/>循环使用同步对象"]
+    
+    UpdateFrame --> End([render函数结束<br/>等待下一帧])
+    
+    style WaitFence fill:#87CEEB
+    style AcquireImage fill:#FFB6C1
+    style QueueSubmit fill:#DDA0DD
+    style QueuePresent fill:#FFE4B5
+```
+
+**同步关系时序图：**
+
+```mermaid
+sequenceDiagram
+    participant CPU as CPU线程
+    participant Fence as 栅栏
+    participant SwapChain as 交换链
+    participant PresentSem as 呈现完成信号量
+    participant Queue as 图形队列
+    participant GPU as GPU
+    participant RenderSem as 渲染完成信号量
+    participant Present as 呈现操作
+    
+    Note over CPU,Present: 帧 N 渲染流程 (currentFrame = 0)
+    
+    CPU->>Fence: 1. vkWaitForFences<br/>等待waitFences[0]
+    Fence-->>CPU: 栅栏已发出信号<br/>命令缓冲区[0]可用
+    
+    CPU->>Fence: 2. vkResetFences<br/>重置waitFences[0]
+    
+    CPU->>SwapChain: 3. vkAcquireNextImageKHR<br/>等待presentCompleteSemaphores[0]
+    SwapChain->>PresentSem: 图像可用，发出信号
+    PresentSem-->>CPU: 返回imageIndex
+    
+    CPU->>CPU: 4. 更新uniformBuffers[0]
+    
+    CPU->>CPU: 5. 记录命令缓冲区[0]
+    
+    CPU->>Queue: 6. vkQueueSubmit<br/>等待presentCompleteSemaphores[0]<br/>发出renderCompleteSemaphores[imageIndex]<br/>关联waitFences[0]
+    
+    Queue->>GPU: 7. GPU开始执行命令<br/>在COLOR_ATTACHMENT_OUTPUT阶段等待信号量
+    GPU->>GPU: 8. GPU执行渲染命令
+    GPU->>RenderSem: 9. 发出renderCompleteSemaphores[imageIndex]信号
+    GPU->>Fence: 10. 发出waitFences[0]信号
+    
+    CPU->>Present: 11. vkQueuePresentKHR<br/>等待renderCompleteSemaphores[imageIndex]
+    Present-->>CPU: 12. 图像已呈现到窗口
+    
+    CPU->>CPU: 13. currentFrame = 1<br/>准备下一帧
+    
+    Note over CPU,Present: 帧 N+1 渲染流程 (currentFrame = 1)
+    
+    CPU->>Fence: 1. vkWaitForFences<br/>等待waitFences[1]
+    Note over CPU,Present: 同时，帧N的命令可能仍在GPU执行中
+```
+
+**关键同步点：**
+
+1. **栅栏等待（步骤1）**：
+   - 确保当前帧的命令缓冲区已完成执行
+   - 防止在命令缓冲区仍在使用时重用
+   - 第一帧由于栅栏初始为已发出信号，不需要等待
+
+2. **栅栏重置（步骤2）**：
+   - 重置栅栏为未发出信号状态
+   - 准备在命令提交时关联栅栏
+
+3. **获取交换链图像（步骤3）**：
+   - 使用呈现完成信号量等待图像可用
+   - 交换链在图像准备好时发出信号
+   - 返回图像索引，可能不是按顺序的
+
+4. **提交命令缓冲区（步骤6-7）**：
+   - 等待呈现完成信号量，确保图像可用
+   - 等待阶段为 `COLOR_ATTACHMENT_OUTPUT`，在颜色附件输出阶段等待
+   - 发出渲染完成信号量，通知渲染完成
+   - 关联栅栏，命令执行完成后发出信号
+
+5. **呈现图像（步骤9-10）**：
+   - 等待渲染完成信号量，确保渲染完成
+   - 呈现完成后，图像可以再次被获取
+
+6. **帧切换（步骤11）**：
+   - 更新当前帧索引，循环使用同步对象
+   - 实现多帧并发渲染
+
+### 多帧并发同步策略
+
+triangle.cpp 使用多帧并发策略，同时处理多帧以提高 GPU 利用率。
+
+**多帧并发架构：**
+
+```mermaid
+graph TB
+    subgraph "帧 0 (currentFrame = 0)"
+        F0_Fence["栅栏 0<br/>waitFences(0)"]
+        F0_PresentSem["呈现完成信号量 0<br/>presentCompleteSemaphores(0)"]
+        F0_CmdBuf["命令缓冲区 0<br/>commandBuffers(0)"]
+        F0_UBO["统一缓冲区 0<br/>uniformBuffers(0)"]
+    end
+    
+    subgraph "帧 1 (currentFrame = 1)"
+        F1_Fence["栅栏 1<br/>waitFences(1)"]
+        F1_PresentSem["呈现完成信号量 1<br/>presentCompleteSemaphores(1)"]
+        F1_CmdBuf["命令缓冲区 1<br/>commandBuffers(1)"]
+        F1_UBO["统一缓冲区 1<br/>uniformBuffers(1)"]
+    end
+    
+    subgraph "交换链图像"
+        Img0["图像 0<br/>renderCompleteSemaphores(0)"]
+        Img1["图像 1<br/>renderCompleteSemaphores(1)"]
+        Img2["图像 2<br/>renderCompleteSemaphores(2)"]
+    end
+    
+    subgraph "队列"
+        Queue["图形队列<br/>线程安全"]
+    end
+    
+    F0_CmdBuf -->|提交| Queue
+    F1_CmdBuf -->|提交| Queue
+    
+    F0_PresentSem -->|等待| Queue
+    F1_PresentSem -->|等待| Queue
+    
+    Queue -->|发出| Img0
+    Queue -->|发出| Img1
+    Queue -->|发出| Img2
+    
+    style F0_Fence fill:#87CEEB
+    style F1_Fence fill:#87CEEB
+    style F0_PresentSem fill:#FFB6C1
+    style F1_PresentSem fill:#FFB6C1
+    style Queue fill:#DDA0DD
+```
+
+**多帧并发策略：**
+
+1. **每帧独立同步对象**：
+   - 每帧有独立的栅栏和呈现完成信号量
+   - 渲染完成信号量按交换链图像数量分配
+   - 实现帧重叠，提高 GPU 利用率
+
+2. **帧索引循环**：
+   - 使用 `currentFrame` 索引循环选择同步对象
+   - `currentFrame = (currentFrame + 1) % MAX_CONCURRENT_FRAMES`
+   - 每帧使用对应的同步对象
+
+3. **资源保护**：
+   - 栅栏确保命令缓冲区在重用前已完成执行
+   - 信号量确保交换链图像和渲染的正确同步
+   - 避免资源竞争和冲突
+
+**多帧并发时间线：**
+
+```mermaid
+gantt
+    title 多帧并发渲染时间线
+    dateFormat X
+    axisFormat %s
+    
+    section 帧 N
+    CPU记录命令缓冲区N    :0, 5s
+    GPU执行命令缓冲区N    :5, 10s
+    
+    section 帧 N+1
+    CPU记录命令缓冲区N+1  :5, 5s
+    GPU执行命令缓冲区N+1  :10, 10s
+    
+    section 帧 N+2
+    CPU记录命令缓冲区N+2  :10, 5s
+    GPU执行命令缓冲区N+2  :15, 10s
+```
+
+**关键优势：**
+- CPU 和 GPU 可以并行工作
+- CPU 记录下一帧时，GPU 执行上一帧
+- 提高 GPU 利用率，减少等待时间
+- 实现更高的帧率
+
+### 同步对象生命周期
+
+在 triangle.cpp 中，同步对象有两种生命周期模式：
+
+**模式1：持久同步对象（渲染循环使用）**
+
+```mermaid
+stateDiagram-v2
+    [*] --> 已创建: createSynchronizationPrimitives<br/>vkCreateFence/vkCreateSemaphore
+    已创建 --> 等待中: render()开始<br/>vkWaitForFences（栅栏）<br/>vkAcquireNextImageKHR（信号量）
+    等待中 --> 已发出信号: GPU操作完成
+    已发出信号 --> 等待中: 重置后再次使用（栅栏）<br/>或下一帧使用（信号量）
+    已发出信号 --> [*]: 程序结束<br/>vkDestroyFence/vkDestroySemaphore
+```
+
+**模式2：临时同步对象（资源上传使用）**
+
+在 `createVertexBuffer()` 中使用的临时复制栅栏：
+
+```mermaid
+stateDiagram-v2
+    [*] --> 已创建: createVertexBuffer中<br/>vkCreateFence
+    已创建 --> 提交中: vkQueueSubmit<br/>关联复制栅栏
+    提交中 --> 执行中: GPU执行复制命令
+    执行中 --> 已发出信号: vkWaitForFences<br/>复制完成
+    已发出信号 --> [*]: vkDestroyFence<br/>立即销毁
+```
+
+### 同步管理总结
+
+| 同步对象类型 | 数量 | 用途 | 生命周期 | triangle.cpp 中的应用 |
+|------------|------|------|---------|---------------------|
+| **等待栅栏** | MAX_CONCURRENT_FRAMES（2） | CPU-GPU同步，保护命令缓冲区重用 | 程序运行期间 | waitFences[] |
+| **呈现完成信号量** | MAX_CONCURRENT_FRAMES（2） | 等待交换链图像可用 | 程序运行期间 | presentCompleteSemaphores[] |
+| **渲染完成信号量** | swapChain.images.size() | 通知渲染完成 | 程序运行期间 | renderCompleteSemaphores[] |
+| **复制栅栏** | 1（临时） | 资源上传同步 | 临时，立即销毁 | createVertexBuffer中的临时栅栏 |
+
+**同步策略总结：**
+- **栅栏**：用于 CPU-GPU 同步，保护资源重用
+- **信号量**：用于 GPU 内部同步，协调交换链和渲染操作
+- **多帧并发**：使用多个同步对象实现帧重叠渲染
+- **帧索引循环**：循环使用同步对象，实现高效的帧管理
+
 ---
 
 ## 命令管理系统（基于 triangle.cpp）
@@ -1356,76 +1656,177 @@ stateDiagram-v2
 - 使用栅栏确保命令缓冲区在再次使用前已完成执行
 - CPU 和 GPU 可以并行工作：CPU 记录下一帧时，GPU 执行上一帧
 
----
+### 多线程命令管理
 
-### 动态渲染 (Dynamic Rendering)
+**triangle.cpp 的实现特点：**
+- triangle.cpp 采用单线程命令记录模式，所有命令缓冲区在主线程中记录
+- 这是 Vulkan 多线程能力的简化示例，适合学习和理解基础概念
+- 实际生产环境通常需要多线程命令记录以提高性能
 
-动态渲染是 Vulkan 1.3 的核心特性，简化了渲染流程，不再需要预先创建渲染通道和帧缓冲区。
+**Vulkan 多线程命令管理机制：**
+
+Vulkan 支持多线程命令记录，这是其相比 OpenGL 的重要优势之一。多线程命令管理允许在不同线程中并行记录命令缓冲区，充分利用多核 CPU 资源。
+
+#### 多线程命令记录架构
 
 ```mermaid
 graph TB
-    subgraph "传统渲染通道方式"
-        CreateRP[创建渲染通道<br/>VkRenderPass]
-        CreateFB[创建帧缓冲区<br/>VkFramebuffer]
-        BeginRP[vkCmdBeginRenderPass]
-        Draw1[绘制]
-        EndRP[vkCmdEndRenderPass]
-        
-        CreateRP --> CreateFB
-        CreateFB --> BeginRP
-        BeginRP --> Draw1
-        Draw1 --> EndRP
+    subgraph "主线程"
+        MainThread[主线程<br/>协调和提交]
+        MainPool[命令池 0<br/>主命令缓冲区]
+        MainCB[主命令缓冲区<br/>PRIMARY级别]
     end
     
-    subgraph "动态渲染方式"
-        SetupAttach[设置附件信息<br/>VkRenderingAttachmentInfo]
-        BeginRend[vkCmdBeginRendering]
-        Draw2[绘制]
-        EndRend[vkCmdEndRendering]
-        
-        SetupAttach --> BeginRend
-        BeginRend --> Draw2
-        Draw2 --> EndRend
+    subgraph "工作线程 1"
+        Thread1[工作线程 1<br/>并行记录]
+        Pool1[命令池 1<br/>线程专用]
+        CB1[次级命令缓冲区 1<br/>SECONDARY级别]
     end
     
-    style BeginRend fill:#90EE90
-    style EndRend fill:#90EE90
+    subgraph "工作线程 2"
+        Thread2[工作线程 2<br/>并行记录]
+        Pool2[命令池 2<br/>线程专用]
+        CB2[次级命令缓冲区 2<br/>SECONDARY级别]
+    end
+    
+    subgraph "工作线程 N"
+        ThreadN[工作线程 N<br/>并行记录]
+        PoolN[命令池 N<br/>线程专用]
+        CBN[次级命令缓冲区 N<br/>SECONDARY级别]
+    end
+    
+    subgraph "队列系统"
+        Queue[图形队列<br/>线程安全提交]
+    end
+    
+    Thread1 --> Pool1
+    Pool1 --> CB1
+    Thread2 --> Pool2
+    Pool2 --> CB2
+    ThreadN --> PoolN
+    PoolN --> CBN
+    
+    MainThread --> MainPool
+    MainPool --> MainCB
+    
+    MainCB -->|执行| CB1
+    MainCB -->|执行| CB2
+    MainCB -->|执行| CBN
+    MainCB -->|提交| Queue
+    
+    style MainThread fill:#FFB6C1
+    style Thread1 fill:#87CEEB
+    style Thread2 fill:#DDA0DD
+    style ThreadN fill:#F0E68C
+    style Queue fill:#90EE90
 ```
 
-### 同步 2 (Synchronization2)
+#### 多线程命令记录策略
 
-同步 2 提供了更灵活和强大的同步机制。
+**策略 1：每线程一个命令池（推荐）**
+
+- **架构**：每个工作线程拥有独立的命令池，避免线程间竞争
+- **优势**：完全并行，无需互斥锁，性能最优
+- **适用场景**：大量对象需要并行记录命令，如大规模场景渲染
+- **命令缓冲区类型**：工作线程记录次级命令缓冲区（SECONDARY），主线程记录主命令缓冲区（PRIMARY）
+
+**策略 2：共享命令池（需要同步）**
+
+- **架构**：多个线程共享同一个命令池
+- **要求**：必须使用互斥锁保护命令池操作（分配、释放、重置）
+- **劣势**：锁竞争会降低并行性能
+- **适用场景**：命令缓冲区数量较少，线程数不多的情况
+
+**策略 3：多线程记录主命令缓冲区**
+
+- **架构**：每个线程记录独立的主命令缓冲区，分别提交到队列
+- **优势**：简单直接，适合不同队列类型的并行提交
+- **适用场景**：图形队列、计算队列、传输队列的并行工作
+
+#### 线程安全规则
+
+**线程安全的 Vulkan 对象和操作：**
+- **VkDevice**：线程安全，可以从多个线程同时调用设备函数
+- **VkQueue**：线程安全，可以从多个线程同时提交命令
+- **VkCommandPool**：线程安全，但同一命令池的分配/释放操作需要同步
+- **VkDescriptorPool**：线程安全，但同一描述符池的分配/释放操作需要同步
+
+**线程不安全的操作：**
+- **命令缓冲区记录**：同一命令缓冲区不能同时被多个线程记录
+- **描述符集更新**：同一描述符集不能同时被多个线程更新
+- **资源绑定**：同一资源不能同时被多个线程以冲突方式访问
+
+#### 多线程命令记录流程
 
 ```mermaid
-graph LR
-    subgraph "传统同步"
-        OldBarrier[VkPipelineBarrier]
-        OldWait[VkWaitSemaphores]
+sequenceDiagram
+    participant Main as 主线程
+    participant Thread1 as 工作线程1
+    participant Thread2 as 工作线程2
+    participant ThreadN as 工作线程N
+    participant Queue as 图形队列
+    
+    Note over Main,ThreadN: 初始化阶段
+    Main->>Main: 创建主命令池和主命令缓冲区
+    Main->>Thread1: 创建工作线程1的命令池
+    Main->>Thread2: 创建工作线程2的命令池
+    Main->>ThreadN: 创建工作线程N的命令池
+    
+    Note over Main,ThreadN: 每帧记录阶段（并行）
+    Main->>Thread1: 分配次级命令缓冲区1
+    Main->>Thread2: 分配次级命令缓冲区2
+    Main->>ThreadN: 分配次级命令缓冲区N
+    
+    par 并行记录
+        Thread1->>Thread1: 记录次级命令缓冲区1<br/>vkBeginCommandBuffer<br/>记录绘制命令<br/>vkEndCommandBuffer
+    and
+        Thread2->>Thread2: 记录次级命令缓冲区2<br/>vkBeginCommandBuffer<br/>记录绘制命令<br/>vkEndCommandBuffer
+    and
+        ThreadN->>ThreadN: 记录次级命令缓冲区N<br/>vkBeginCommandBuffer<br/>记录绘制命令<br/>vkEndCommandBuffer
     end
     
-    subgraph "同步 2"
-        NewBarrier[VkMemoryBarrier2]
-        NewWait[VkSemaphoreSubmitInfo]
-        Timeline[时间线信号量]
-    end
+    Note over Main,ThreadN: 主线程等待所有工作线程完成
+    Thread1-->>Main: 次级命令缓冲区1记录完成
+    Thread2-->>Main: 次级命令缓冲区2记录完成
+    ThreadN-->>Main: 次级命令缓冲区N记录完成
     
-    OldBarrier --> NewBarrier
-    OldWait --> NewWait
-    NewWait --> Timeline
-    
-    style NewBarrier fill:#90EE90
-    style Timeline fill:#90EE90
+    Note over Main,Queue: 主线程组装和提交
+    Main->>Main: 开始记录主命令缓冲区<br/>vkBeginCommandBuffer
+    Main->>Main: 开始渲染通道<br/>vkCmdBeginRenderPass
+    Main->>Main: 执行所有次级命令缓冲区<br/>vkCmdExecuteCommands<br/>（包含所有次级缓冲区）
+    Main->>Main: 结束渲染通道<br/>vkCmdEndRenderPass
+    Main->>Main: 结束记录主命令缓冲区<br/>vkEndCommandBuffer
+    Main->>Queue: 提交主命令缓冲区<br/>vkQueueSubmit
 ```
 
-### 特性对比表
+#### 多线程命令管理的优势
 
-| 特性 | Vulkan 1.0-1.2 | Vulkan 1.3 |
-|-----|---------------|-----------|
-| **渲染方式** | 渲染通道 + 帧缓冲区 | 动态渲染 |
-| **同步机制** | 基础同步原语 | 同步 2 |
-| **管线创建** | 需要渲染通道 | 不需要渲染通道 |
-| **API 复杂度** | 较高 | 较低 |
-| **性能** | 优秀 | 优秀 |
+**性能提升：**
+- **CPU 利用率**：充分利用多核 CPU，将命令记录工作分配到多个线程
+- **并行度**：多个线程可以同时记录不同对象的渲染命令
+- **延迟降低**：减少主线程的负担，提高整体渲染效率
+
+**适用场景：**
+- **大规模场景**：包含大量对象的场景，每个线程负责一部分对象的命令记录
+- **复杂渲染**：需要记录大量命令的复杂渲染流程
+- **多队列并行**：图形队列、计算队列、传输队列的并行工作
+
+#### triangle.cpp 扩展为多线程的考虑
+
+虽然 triangle.cpp 是单线程实现，但可以扩展为多线程架构：
+
+**扩展方案：**
+1. **保持主线程**：负责主命令缓冲区的记录、提交和呈现
+2. **添加工作线程**：每个工作线程拥有独立的命令池，记录次级命令缓冲区
+3. **资源分配**：将场景对象分配给不同线程，并行记录命令
+4. **同步机制**：使用栅栏或条件变量等待所有工作线程完成记录
+5. **主线程组装**：主线程在主命令缓冲区中执行所有次级命令缓冲区
+
+**注意事项：**
+- 每个线程必须使用独立的命令池，避免竞争
+- 次级命令缓冲区需要继承渲染通道信息
+- 确保资源访问的线程安全性
+- 合理分配工作负载，避免线程间负载不均
 
 ---
 
