@@ -150,6 +150,43 @@ VkResult VulkanExampleBase::createInstance()
 		instanceCreateInfo.ppEnabledExtensionNames = instanceExtensions.data();  // 设置启用的扩展名称数组
 	}
 
+	// ============================================================================
+	// Vulkan Layer（层）详解
+	// ============================================================================
+	// Layer 是 Vulkan 架构中的一个重要概念，它是在应用程序和 Vulkan 驱动之间插入的中间层。
+	// 根据 Vulkan 官方规范，Layer 的主要作用包括：
+	//
+	// 1. 【验证层（Validation Layer）】
+	//    - 在开发阶段检查 API 调用是否符合 Vulkan 规范
+	//    - 检测参数错误、资源泄漏、同步问题等
+	//    - 提供详细的错误和警告信息，帮助调试
+	//    - 性能开销较大，仅用于开发和调试，不应在发布版本中使用
+	//
+	// 2. 【调试层（Debug Layer）】
+	//    - 提供 API 调用跟踪、日志记录功能
+	//    - 可以记录所有 Vulkan 函数调用及其参数
+	//    - 帮助分析应用程序的行为
+	//
+	// 3. 【性能分析层（Profiling Layer）】
+	//    - 收集性能统计信息
+	//    - 分析 GPU 使用情况、内存占用等
+	//    - 帮助优化应用程序性能
+	//
+	// 4. 【平台适配层（Platform Adaptation Layer）】
+	//    - 在不同平台上提供兼容性支持
+	//    - 例如：MoltenVK 层在 macOS/iOS 上将 Vulkan 调用转换为 Metal API
+	//    - 使 Vulkan 应用能在不原生支持 Vulkan 的平台上运行
+	//
+	// 【Layer 的工作原理】
+	// 应用程序 -> Layer 1 -> Layer 2 -> ... -> Vulkan Loader -> Driver
+	// Layer 可以拦截、修改、记录或验证 Vulkan API 调用，然后传递给下一层或驱动。
+	//
+	// 【Layer 的启用方式】
+	// 1. 在创建 VkInstance 时通过 VkInstanceCreateInfo.ppEnabledLayerNames 指定
+	// 2. 通过环境变量 VK_INSTANCE_LAYERS 全局启用（不推荐，影响所有应用）
+	// 3. 通过 vkconfig 工具配置（Windows/Linux）
+	//
+	// ============================================================================
 	// The VK_LAYER_KHRONOS_validation contains all current validation functionality.
 	// Note that on Android this layer requires at least NDK r20
 	// VK_LAYER_KHRONOS_validation 包含所有当前的验证功能
@@ -177,6 +214,47 @@ VkResult VulkanExampleBase::createInstance()
 		}
 	}
 
+	// ============================================================================
+	// Layer Settings（层设置）详解
+	// ============================================================================
+	// Layer Settings 是 Vulkan 1.3.268 引入的 VK_EXT_layer_settings 扩展提供的机制，
+	// 用于在创建 VkInstance 时配置特定 Layer 的行为和功能。
+	//
+	// 【Layer Settings 的作用】
+	// 1. 激活 Layer 的特定功能
+	//    - 例如：启用 Validation Layer 的 printf 功能（用于着色器调试）
+	//    - 例如：启用 Validation Layer 的同步验证、对象跟踪等功能
+	//
+	// 2. 配置驱动层的行为
+	//    - 例如：配置 MoltenVK（macOS/iOS 上的 Vulkan 实现）使用专用计算队列
+	//    - 例如：配置其他驱动实现的行为参数
+	//
+	// 3. 替代旧的配置文件方式
+	//    - 旧方式：通过 vk_layer_settings.txt 文件或环境变量配置
+	//    - 新方式：通过 VkLayerSettingsCreateInfoEXT 结构在代码中直接配置
+	//    - 优点：更灵活，可以在运行时动态配置，不依赖外部文件
+	//
+	// 【Layer Settings 的使用示例】
+	// 1. Validation Layer 的 printf 功能：
+	//    VkLayerSettingEXT setting = {
+	//        .pLayerName = "VK_LAYER_KHRONOS_validation",
+	//        .pSettingName = "enables",
+	//        .type = VK_LAYER_SETTING_TYPE_STRING_EXT,
+	//        .valueCount = 1,
+	//        .pValues = "VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT"
+	//    };
+	//
+	// 2. MoltenVK 的专用队列族配置（见下面代码）：
+	//    配置 MoltenVK 使用专用计算队列，提高性能
+	//
+	// 【Layer Settings 的工作流程】
+	// 1. 检查 VK_EXT_layer_settings 扩展是否可用
+	// 2. 创建 VkLayerSettingEXT 数组，配置各个设置
+	// 3. 创建 VkLayerSettingsCreateInfoEXT 结构
+	// 4. 将结构链接到 VkInstanceCreateInfo.pNext 链中
+	// 5. 在创建 VkInstance 时，Layer 会读取这些设置并应用
+	//
+	// ============================================================================
 	// If layer settings are defined, then activate the sample's required layer settings during instance creation.
 	// Layer settings are typically used to activate specific features of a layer, such as the Validation Layer's
 	// printf feature, or to configure specific capabilities of drivers such as MoltenVK on macOS and/or iOS.
@@ -986,6 +1064,23 @@ VulkanExampleBase::VulkanExampleBase()
 		vks::tools::resourcePath = commandLineParser.getValueAsString("resourcepath", "");  // 获取资源路径
 	}
 #else
+	// ============================================================================
+	// MoltenVK Layer Settings 配置示例
+	// ============================================================================
+	// MoltenVK 是 macOS/iOS 平台上的 Vulkan 实现，它将 Vulkan API 调用转换为 Metal API。
+	// 这里演示如何使用 Layer Settings 来配置 MoltenVK 的行为。
+	//
+	// 【MVK_CONFIG_SPECIALIZED_QUEUE_FAMILIES 说明】
+	// - 作用：启用 MoltenVK 的专用队列族功能
+	// - 效果：为图形、计算、传输等不同类型的操作创建专用的队列族
+	// - 好处：提高性能，特别是在使用计算着色器或时间线信号量的场景中
+	// - 适用场景：compute[*] 和 timelinesemaphore 等示例需要此配置
+	//
+	// 【其他常见的 MoltenVK 设置】
+	// - MVK_CONFIG_SYNCHRONOUS_QUEUE_SUBMITS: 同步队列提交（用于调试）
+	// - MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS: 使用 Metal 参数缓冲区
+	// - MVK_CONFIG_SWAPCHAIN_SPEC: 交换链规范配置
+	//
 	// With MoltenVK, use layer settings extension to configure it with common project config settings
 	// Other implementations like lavapipe and KosmicKrisp do not need this
 	// 使用 MoltenVK 时，使用层设置扩展来配置它，使用通用项目配置设置
@@ -1006,15 +1101,16 @@ VulkanExampleBase::VulkanExampleBase()
 					// Configure MoltenVK to use to use a dedicated compute queue (see compute[*] and timelinesemaphore samples)
 					// 配置 MoltenVK 使用专用计算队列（参见 compute[*] 和 timelinesemaphore 示例）
 					VkLayerSettingEXT layerSetting{
-						.pLayerName = "MoltenVK",  // 层名称
-						.pSettingName = "MVK_CONFIG_SPECIALIZED_QUEUE_FAMILIES",  // 设置名称（专用队列族）
-						.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,  // 设置类型（布尔值）
-						.valueCount = 1  // 值数量
+						.pLayerName = "MoltenVK",  // 层名称：指定要配置的层
+						.pSettingName = "MVK_CONFIG_SPECIALIZED_QUEUE_FAMILIES",  // 设置名称：专用队列族配置
+						.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,  // 设置类型：布尔值（启用/禁用）
+						.valueCount = 1  // 值数量：1 个值
 					};
 					// Make this static so layer setting reference remains valid after leaving constructor scope
 					// 使其为静态，以便层设置引用在离开构造函数作用域后仍然有效
+					// 注意：VkLayerSettingEXT.pValues 是指针，必须确保指向的数据在创建实例时仍然有效
 					static const VkBool32 layerSettingOn = VK_TRUE;  // 静态布尔值（启用）
-					layerSetting.pValues = &layerSettingOn;  // 设置值指针
+					layerSetting.pValues = &layerSettingOn;  // 设置值指针：指向启用标志
 					enabledLayerSettings.push_back(layerSetting);  // 添加到启用的层设置列表
 					
 					break;  // 跳出循环
