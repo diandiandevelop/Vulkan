@@ -3821,38 +3821,72 @@ void VulkanExampleBase::setupRenderPass()
 		// Color attachment
 		// 颜色附件
 		VkAttachmentDescription{
-			.format = swapChain.colorFormat,  // 颜色格式
-			.samples = VK_SAMPLE_COUNT_1_BIT,  // 单采样
-			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,  // 加载操作：清除
-			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,  // 存储操作：存储
-			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,  // 模板加载操作：不关心
-			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,  // 模板存储操作：不关心
-			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,  // 初始布局：未定义
-			.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR  // 最终布局：呈现源
+			.format = swapChain.colorFormat,  // 颜色格式，与交换链图像格式保持一致（如VK_FORMAT_B8G8R8A8_UNORM）
+			.samples = VK_SAMPLE_COUNT_1_BIT,  // 单采样（无抗锯齿），若要开启MSAA可改为更高采样数
+			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,  // 加载操作：渲染开始前清除附件内容（清空为指定清除色）
+			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,  // 存储操作：渲染结束后保留附件内容（用于后续呈现到屏幕）
+			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,  // 模板加载操作：不关心（颜色附件不处理模板数据）
+			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,  // 模板存储操作：不关心（同上）
+			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,  // 初始布局：未定义（Vulkan 无需关心渲染前的图像布局，优化性能）
+			.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR  // 最终布局：呈现源（渲染完成后，图像可被交换链呈现到屏幕）
 		},
+		/**
+		关键参数说明：
+			loadOp：VK_ATTACHMENT_LOAD_OP_CLEAR 表示渲染前会将颜色附件清空（比如清空为黑色或蓝色背景），另一种常见值是 VK_ATTACHMENT_LOAD_OP_LOAD（保留附件原有内容，用于后续渲染叠加）。
+			storeOp：VK_ATTACHMENT_STORE_OP_STORE 表示渲染后保留颜色附件数据，因为后续需要通过交换链将其显示到屏幕；若设置为 VK_ATTACHMENT_STORE_OP_DONT_CARE，Vulkan 会丢弃数据，节省内存带宽（适用于无需保留的中间渲染结果）。
+			finalLayout：VK_IMAGE_LAYOUT_PRESENT_SRC_KHR 是交换链呈现图像的标准布局，必须与交换链图像的布局兼容。
+		*/
+
+
 		// Depth attachment
 		// 深度附件
 		VkAttachmentDescription{
-			.format = depthFormat,  // 深度格式
-			.samples = VK_SAMPLE_COUNT_1_BIT,  // 单采样
-			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,  // 加载操作：清除
-			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,  // 存储操作：存储
-			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,  // 模板加载操作：清除
-			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,  // 模板存储操作：不关心
+		    .format = depthFormat,  // 深度格式（如VK_FORMAT_D32_SFLOAT_S8_UINT，支持深度值+模板值）
+			.samples = VK_SAMPLE_COUNT_1_BIT,  // 单采样，与颜色附件采样数保持一致
+			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,  // 渲染前清除深度模板数据（深度值重置为1.0，模板值重置为0）
+			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,  // 渲染后保留深度模板数据（可用于后续帧的深度测试优化）
+			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,  // 模板加载操作：清除（重置模板缓冲区）
+			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,  // 模板存储操作：不关心（本例不使用模板测试，丢弃模板数据）
 			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,  // 初始布局：未定义
-			.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL  // 最终布局：深度模板附件最优
+			.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL  // 最终布局：深度模板附件最优布局（便于后续复用）
 		}
+
+		/**
+		关键参数说明：
+			depthFormat：是预先查询的、设备支持的深度模板格式，必须包含深度组件（D），可选包含模板组件（S）。
+			finalLayout：VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL 是 Vulkan 针对深度模板附件读写优化的布局，若后续不需要复用深度缓冲，也可设置为 VK_IMAGE_LAYOUT_UNDEFINED 以提升性能。
+		*/
 	};
+
+
+
 
 	VkAttachmentReference colorReference{ .attachment = 0, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };  // 颜色附件引用（索引 0）
 	VkAttachmentReference depthReference{ .attachment = 1, .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };  // 深度附件引用（索引 1）
+	/**
+	VkAttachmentReference 的作用是在子通道（Subpass）中引用前面定义的附件，相当于给附件分配「子通道内的使用标识」，因为一个渲染通道可以包含多个子通道，不同子通道可能引用同一个附件的不同布局。
+	关键参数说明：
+	.attachment：指定引用的附件索引（对应 attachments 数组的下标，0 = 颜色附件，1 = 深度模板附件）。
+	.layout：指定该附件在当前子通道中使用的图像布局（不是初始 / 最终布局）：
+		颜色附件使用 VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL：Vulkan 针对颜色附件写入（渲染着色器输出）优化的布局。
+		深度模板附件使用 VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL：针对深度 / 模板测试优化的布局。
+	*/
+
 
 	VkSubpassDescription subpassDescription{
-		.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,  // 图形管线绑定点
-		.colorAttachmentCount = 1,  // 颜色附件数量
-		.pColorAttachments = &colorReference,  // 颜色附件引用
-		.pDepthStencilAttachment = &depthReference,  // 深度模板附件引用
+		.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,  // 绑定图形管线（Vulkan 还有计算管线绑定点）
+		.colorAttachmentCount = 1,  // 子通道使用的颜色附件数量
+		.pColorAttachments = &colorReference,  // 颜色附件引用数组（这里只有1个颜色附件）
+		.pDepthStencilAttachment = &depthReference,  // 深度模板附件引用（单个，非数组）
 	};
+	/**
+	子通道（Subpass）是 Vulkan 渲染通道的最小渲染单元，表示一个「连贯的渲染步骤」。一个渲染通道可以包含多个子通道，子通道之间可以共享附件，且 Vulkan 会对相邻子通道进行优化（减少布局转换开销）。
+	本例中只定义了 1 个子通道，核心参数说明：
+	pipelineBindPoint：指定该子通道绑定的管线类型，这里是图形管线（用于渲染 2D/3D 图像），若为计算管线则设置为 VK_PIPELINE_BIND_POINT_COMPUTE。
+	pColorAttachments：指向颜色附件引用数组，是子通道的「输出目标」（顶点着色器 / 片段着色器的最终颜色输出到这里）。
+	pDepthStencilAttachment：指向深度模板附件引用，子通道执行深度测试（判断像素是否被遮挡）、模板测试（实现遮罩、描边等特效）时会读写该附件。
+	*/
+
 
 	// Subpass dependencies for layout transitions
 	// 子通道依赖关系（用于布局转换）
