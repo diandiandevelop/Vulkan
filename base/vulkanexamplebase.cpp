@@ -60,12 +60,12 @@ VkResult VulkanExampleBase::createInstance()
 
 	// Get extensions supported by the instance and store for later use
 	// 获取实例支持的扩展并存储以供后续使用
-	uint32_t extCount = 0;  // 扩展数量
+	uint32_t extCount = 0;  // 扩展数量        也就是确定了内存大小
 	vkEnumerateInstanceExtensionProperties(nullptr, &extCount, nullptr);  // 获取实例扩展数量（第一次调用，仅获取数量）
 	if (extCount > 0)  // 如果有扩展
 	{
-		std::vector<VkExtensionProperties> extensions(extCount);  // 创建扩展属性向量
-		if (vkEnumerateInstanceExtensionProperties(nullptr, &extCount, &extensions.front()) == VK_SUCCESS)  // 获取所有实例扩展属性（第二次调用，获取属性）
+		std::vector<VkExtensionProperties> extensions(extCount);  // 创建扩展属性列表
+		if (vkEnumerateInstanceExtensionProperties(nullptr, &extCount, &extensions.front()) == VK_SUCCESS)  // 获取所有实例扩展属性（第二次调用，获取属性） extensions.front()把首地址传进入再传个长度把列表装满
 		{
 			for (VkExtensionProperties& extension : extensions)  // 遍历所有扩展
 			{

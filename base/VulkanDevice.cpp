@@ -199,6 +199,16 @@ namespace vks
 	*
 	* @return VkResult of the device creation call
 	*/
+	/**
+	* 基于已选定的物理设备创建逻辑设备，同时获取默认的队列族索引。
+	*
+	* @param  enabledFeatures  可用于在设备创建时启用特定的功能特性。
+	* @param  pNextChain       可选的扩展结构体指针链（扩展信息传递链）。
+	* @param  useSwapChain     若为无窗口渲染（离屏渲染），请设为 false，以忽略交换链相关的设备扩展。
+	* @param  requestedQueueTypes  位掩码标志，用于指定需要从设备中请求获取的队列类型。
+	*
+	* @return  设备创建调用对应的 VkResult 状态码。
+	*/
 	VkResult VulkanDevice::createLogicalDevice(VkPhysicalDeviceFeatures enabledFeatures, std::vector<const char*> enabledExtensions, void* pNextChain, bool useSwapChain, VkQueueFlags requestedQueueTypes)
 	{			
 		// Desired queues need to be requested upon logical device creation
@@ -214,11 +224,11 @@ namespace vks
 		// 获取请求的队列族类型的队列族索引
 		// 注意：根据实现，索引可能会重叠
 
-		const float defaultQueuePriority(0.0f);  // 默认队列优先级
+		const float defaultQueuePriority(0.0f);  // 默认队列优先级       // 队列优先级（0.0~1.0，高优先级队列先执行命令）
 
 		// Graphics queue
 		// 图形队列
-		if (requestedQueueTypes & VK_QUEUE_GRAPHICS_BIT)  // 如果请求图形队列
+		if (requestedQueueTypes & VK_QUEUE_GRAPHICS_BIT)  // 如果请求图形队列  过requestedQueueTypes位掩码判断是否需要启用对应队列，且相同队列族仅配置一次（避免重复创建）
 		{
 			queueFamilyIndices.graphics = getQueueFamilyIndex(VK_QUEUE_GRAPHICS_BIT);  // 获取图形队列族索引
 			VkDeviceQueueCreateInfo queueInfo{
