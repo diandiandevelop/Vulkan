@@ -1,4 +1,4 @@
-/*
+﻿/*
 * Vulkan Example - Basic indexed triangle rendering
 *
 * Note:
@@ -368,7 +368,7 @@ public:
 		// 创建主机可见缓冲区以复制顶点数据（暂存缓冲区）
 		VK_CHECK_RESULT(vkCreateBuffer(device, &vertexBufferInfoCI, nullptr, &stagingBuffers.vertices.buffer));  // 创建顶点暂存缓冲区
 		vkGetBufferMemoryRequirements(device, stagingBuffers.vertices.buffer, &memReqs);  // 查询缓冲区内存需求
-		memAlloc.allocationSize = memReqs.size;  // 设置分配大小
+		memAlloc.allocationSize = memReqs.size;  // 设置分配大小  这才是开辟的真实大小
 		// Request a host visible memory type that can be used to copy our data to
 		// Also request it to be coherent, so that writes are visible to the GPU right after unmapping the buffer
 		// 请求可用于复制数据的主机可见内存类型
@@ -408,7 +408,7 @@ public:
 		VK_CHECK_RESULT(vkMapMemory(device, stagingBuffers.indices.memory, 0, indexBufferSize, 0, &data));  // 映射内存
 		memcpy(data, indexBuffer.data(), indexBufferSize);  // 复制索引数据到映射内存
 		vkUnmapMemory(device, stagingBuffers.indices.memory);  // 取消映射内存
-		VK_CHECK_RESULT(vkBindBufferMemory(device, stagingBuffers.indices.buffer, stagingBuffers.indices.memory, 0));  // 将内存绑定到缓冲区
+		VK_CHECK_RESULT(vkBindBufferMemory(device, stagingBuffers.indices.buffer, stagingBuffers.indices.memory, 0));  // 将内存绑定到缓冲区 让buffer句柄实际关联内存
 
 		// Create destination buffer with device only visibility
 		// 创建仅设备可见的目标缓冲区
