@@ -1,4 +1,4 @@
-/*
+﻿/*
 * Vulkan Example - Basic indexed triangle rendering using Vulkan 1.3
 *
 * Note:
@@ -954,7 +954,9 @@ public:
 	{
 		// Use a fence to wait until the command buffer has finished execution before using it again
 		// 使用栅栏等待命令缓冲区完成执行，然后才能再次使用它
+		//渲染当前帧之前，先等待该帧对应的栅栏被 GPU 信号标记（即上一次使用该栅栏的 GPU 命令已执行完成）。VK_TRUE 表示等待栅栏状态变为「已触发」，UINT64_MAX 表示无限等待，确保 GPU 资源就绪后再进行后
 		vkWaitForFences(device, 1, &waitFences[currentFrame], VK_TRUE, UINT64_MAX);  // 等待当前帧的栅栏
+		//栅栏是「一次性触发」的（触发后状态保持为「已完成」，无法再次用于等待），因此在等待完成后、重新使用该栅栏之前，必须调用 vkResetFences 将其状态重置为「未触发」，为当前帧的 GPU 命令提交做准备。
 		VK_CHECK_RESULT(vkResetFences(device, 1, &waitFences[currentFrame]));  // 重置栅栏，准备下一帧使用
 
 		// Get the next swap chain image from the implementation
@@ -1094,6 +1096,7 @@ public:
 
 		// Submit to the graphics queue passing a wait fence
 		// 提交到图形队列，传递等待栅栏
+		//将当前帧对应的栅栏传递给 vkQueueSubmit 的最后一个参数，当该提交中的所有 GPU 命令（命令缓冲区中的渲染指令）全部执行完成后，GPU 会自动将该栅栏标记为「已触发」，供下一循环（该帧再次被选中时）的 vkWaitForFences 等待使用。
 		VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, waitFences[currentFrame]));  // 提交命令缓冲区到队列
 
 		// Present the current frame buffer to the swap chain
@@ -1118,6 +1121,24 @@ public:
 		// Select the next frame to render to, based on the max. no. of concurrent frames
 		// 根据最大并发帧数选择下一个要渲染的帧
 		currentFrame = (currentFrame + 1) % MAX_CONCURRENT_FRAMES;  // 循环选择下一帧（帧重叠）
+
+
+		/**
+		第 1 次进入 render 循环：
+		初始 currentFrame=0，此时操作的是 waitFences[0]；
+		调用 vkWaitForFences(device, 1, &waitFences[0], VK_TRUE, UINT64_MAX)，由于是首次使用该栅栏，它在程序初始化时被创建并处于「未触发（unsignaled）」状态；
+		但对于首次执行，vkWaitForFences 传入 waitFences[0] 会直接通过，不产生任何阻塞（因为该栅栏从未被绑定到任何 GPU 任务，没有需要等待的 GPU 执行结果）；
+		后续完成栅栏重置、命令提交、呈现请求，最后执行 currentFrame = (0 + 1) % 2 = 1，切换为 1。
+		
+		第 2 次进入 render 循环：
+		此时 currentFrame=1，操作的是 waitFences[1]；
+		同样，waitFences[1] 也是首次使用，处于初始化后的「未触发」状态，vkWaitForFences 直接通过，不阻塞；
+		最后执行 currentFrame = (1 + 1) % 2 = 0，切换为 0。
+
+		第 3 次进入 render 循环：
+		此时 currentFrame=0，操作的是 waitFences[0]； 等待第一次渲染结束 这样就实现了帧重叠。
+	
+		*/
 	}
 
 	// Override these as otherwise the base class would generate frame buffers and render passes
