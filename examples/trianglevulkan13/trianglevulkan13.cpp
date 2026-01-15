@@ -987,6 +987,15 @@ public:
 		const VkCommandBuffer commandBuffer = commandBuffers[currentFrame];  // 当前帧的命令缓冲区
 		VK_CHECK_RESULT(vkBeginCommandBuffer(commandBuffer, &cmdBufInfo));  // 开始记录命令缓冲区
 
+		/**
+		**变化点 2：layout transition 从“隐式”变“显式”（最容易卡住）**
+		- 传统路线里，你在 RenderPass 里写 `initialLayout/finalLayout` + subpass dependency，驱动会在 renderpass 边界隐式完成很多转换
+		- 动态渲染没有 RenderPass 边界，所以你必须在命令缓冲区里显式写 barrier：
+		  - **渲染前**：swapchain image / depth image → `ATTACHMENT_OPTIMAL`
+		  - **渲染后呈现前**：swapchain image → `PRESENT_SRC_KHR`
+
+		> 小提示：你看到 `trianglevulkan13` 的 `render()` 一开始就插入两次 barrier（颜色/深度），结束渲染后又插一次 barrier（颜色转 present），这就是动态渲染“流程变化”的核心体现。
+		*/
 		// With dynamic rendering we need to explicitly add layout transitions by using barriers, this set of barriers prepares the color and depth images for output
 		// 使用动态渲染时，我们需要使用屏障显式添加布局转换，这组屏障准备颜色和深度图像以进行输出
 		// 颜色图像：从未定义布局转换到附件最优布局
