@@ -1118,6 +1118,8 @@ public:
 			throw "Could not present the image to the swap chain!";  // 抛出异常
 		}
 
+		//vkQueueSubmit 和 vkQueuePresentKHR 之间没有先后执行顺序之说
+
 		// Select the next frame to render to, based on the max. no. of concurrent frames
 		// 根据最大并发帧数选择下一个要渲染的帧
 		currentFrame = (currentFrame + 1) % MAX_CONCURRENT_FRAMES;  // 循环选择下一帧（帧重叠）
