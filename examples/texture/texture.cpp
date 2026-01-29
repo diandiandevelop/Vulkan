@@ -773,28 +773,41 @@ public:
 		renderPassBeginInfo.renderArea.extent.height = height;
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
-		renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];
+		renderPassBeginInfo.framebuffer = frameBuffers[currentImageIndex];  //帧缓冲数组，每个帧缓冲关联交换链的一个图像 + 深度模板缓冲区。
 
 		VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo));
 
 		vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
+		//设置视口   0：视口索引（支持多视口渲染，这里只用第一个）   1：视口数量
 		VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
 		vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
 
+		//设置裁剪矩形
 		VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
 		vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
 
+		//绑定描述符集（Descriptor Set）
 		// This will bind the descriptor set that contains our image (texture), so it can be accessed in the fragment shader
 		// 绑定包含纹理图像的描述符集，以便片元着色器可以访问该纹理
 		// 绑定包含纹理图像的描述符集，以便在片元着色器中访问该纹理
+		//0：描述符集的起始索引（管线布局中可以有多个描述符集，这里绑定第 0 个）。    1：要绑定的描述符集数量。
 		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentBuffer], 0, nullptr);
+
+		//绑定图形管线：
 		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
+		//绑定顶点缓冲区/索引缓冲区
 		VkDeviceSize offsets[1] = { 0 };
 		vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vertexBuffer.buffer, offsets);
 		vkCmdBindIndexBuffer(cmdBuffer, indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 
+		//执行索引绘制
+		//indexCount：要绘制的索引数量（即要渲染的顶点数量）
+		//1：绘制的实例数量（这里只绘制一个实例）。
+		//0：索引偏移量（从索引缓冲区的第 0 个索引开始）。 从索引缓冲区的第几个索引开始读取：- 传入 0：从索引缓冲区开头开始；- 传入 10：跳过前 10 个索引，从第 11 个开始绘制（适合从一个大索引缓冲区中只渲染部分模型）
+		//0：顶点偏移量（顶点数据的偏移）。索引缓冲区中存储的索引值会加上这个偏移量，再去顶点缓冲区取顶点：-传入 0：索引值直接对应顶点缓冲区的顶点位置（你的场景）；- 比如传入 10：索引 0 会对应顶点缓冲区的第 10 个顶点（适合多个模型共享一个顶点缓冲区时，避免索引冲突）
+		//0：实例偏移量（实例化渲染时的偏移） 只有 instanceCount > 1 时有效：-传入 0：从第 0 个实例开始绘制；- 传入 5：跳过前 5 个实例，从第 6 个开始（适合批量渲染时只渲染部分实例）
 		vkCmdDrawIndexed(cmdBuffer, indexCount, 1, 0, 0, 0);
 
 		drawUI(cmdBuffer);

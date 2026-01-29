@@ -1,4 +1,4 @@
-/*
+﻿/*
 * Vulkan Example - Texture arrays and instanced rendering
 * 
 * This sample shows how to load and render a texture array. This is a single layered texture where each layer contains different image data.
@@ -337,7 +337,7 @@ public:
 
 	void setupDescriptors()
 	{
-		// Pool
+		// Pool// 1. 定义描述符池需要分配的资源类型和数量
 		std::vector<VkDescriptorPoolSize> poolSizes = {
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, maxConcurrentFrames),
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, maxConcurrentFrames)
@@ -345,26 +345,30 @@ public:
 		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, maxConcurrentFrames);
 		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 
-		// Layout
+		// Layout// 1. 定义描述符集布局的绑定信息
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
-			// Binding 0 : Vertex shader uniform buffer
+			 // Binding 0 ：顶点着色器（Vertex Shader）使用的统一缓冲区
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0),
-			// Binding 1 : Fragment shader image sampler
+			//  Binding 1 ：片段着色器（Fragment Shader）使用的纹理采样器
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1)
 		};
 		VkDescriptorSetLayoutCreateInfo descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
 		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &descriptorSetLayout));
 
-		// Image descriptor for the texture array
+		//  初始化纹理的描述符信息，包含采样器、纹理视图、纹理布局
 		VkDescriptorImageInfo textureDescriptor = vks::initializers::descriptorImageInfo(textureArray.sampler, textureArray.view, textureArray.imageLayout);
-
-		// Sets per frame, just like the buffers themselves
-		// Images do not need to be duplicated per frame, we reuse the same one for each frame
+		
 		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
+
+		// 2. 遍历每个并发帧，为每个帧分配并初始化一个描述符集
 		for (auto i = 0; i < uniformBuffers.size(); i++) {
+			// 2.1 从描述符池中分配一个描述符集
 			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets[i]));
+			// 2.2 定义需要写入到描述符集中的资源数据（2个：Uniform Buffer + 纹理采样器）
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
+				// 写入绑定点0：当前帧的Uniform Buffer
 				vks::initializers::writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffers[i].descriptor),
+				// 写入绑定点1：全局复用的纹理采样器
 				vks::initializers::writeDescriptorSet(descriptorSets[i], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &textureDescriptor),
 			};
 			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
